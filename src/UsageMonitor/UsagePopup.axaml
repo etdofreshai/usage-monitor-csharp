@@ -1,0 +1,127 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="UsageMonitor.UsagePopup"
+        Title="Usage Monitor"
+        Width="320"
+        Height="400"
+        CanResize="False"
+        ShowInTaskbar="False"
+        SystemDecorations="None"
+        Topmost="True"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent">
+
+    <Border Background="#E6181818"
+            CornerRadius="12"
+            BorderBrush="#404040"
+            BorderThickness="1"
+            Padding="0">
+
+        <Grid RowDefinitions="Auto,*">
+
+            <!-- Title Bar -->
+            <Border Grid.Row="0"
+                    Background="#252525"
+                    CornerRadius="12,12,0,0"
+                    Padding="14,10">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0"
+                               Text="Usage Monitor"
+                               FontSize="14"
+                               FontWeight="SemiBold"
+                               Foreground="#E0E0E0"
+                               VerticalAlignment="Center" />
+                    <Button Grid.Column="1"
+                            x:Name="CloseButton"
+                            Width="28" Height="28"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            CornerRadius="14"
+                            Padding="0"
+                            ToolTip.Tip="Close">
+                        <Path Data="M18.3,5.71 L12,12 L5.71,5.71 M5.71,18.29 L12,12 L18.3,18.29"
+                              Stroke="#888888"
+                              StrokeThickness="2"
+                              Width="14" Height="14"
+                              Stretch="Uniform" />
+                    </Button>
+                </Grid>
+            </Border>
+
+            <!-- Content Area -->
+            <ScrollViewer Grid.Row="1" Padding="14,10,14,14">
+                <StackPanel Spacing="12">
+
+                    <!-- CPU Section -->
+                    <Border Background="#222222" CornerRadius="8" Padding="12">
+                        <StackPanel Spacing="6">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="CPU" FontSize="12" Foreground="#888888" FontWeight="Medium" />
+                                <TextBlock x:Name="CpuPercentText" Text="0%" FontSize="12" Foreground="#64B5F6" Grid.Column="1" />
+                            </Grid>
+                            <ProgressBar x:Name="CpuBar"
+                                         Minimum="0" Maximum="100" Value="0"
+                                         Height="6" CornerRadius="3"
+                                         Foreground="#64B5F6" Background="#333333" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Memory Section -->
+                    <Border Background="#222222" CornerRadius="8" Padding="12">
+                        <StackPanel Spacing="6">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="Memory" FontSize="12" Foreground="#888888" FontWeight="Medium" />
+                                <TextBlock x:Name="MemoryText" Text="0 / 0 GB" FontSize="12" Foreground="#81C784" Grid.Column="1" />
+                            </Grid>
+                            <ProgressBar x:Name="MemoryBar"
+                                         Minimum="0" Maximum="100" Value="0"
+                                         Height="6" CornerRadius="3"
+                                         Foreground="#81C784" Background="#333333" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Disk Section -->
+                    <Border Background="#222222" CornerRadius="8" Padding="12">
+                        <StackPanel Spacing="6">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="Disk (C:)" FontSize="12" Foreground="#888888" FontWeight="Medium" />
+                                <TextBlock x:Name="DiskText" Text="0 / 0 GB" FontSize="12" Foreground="#FFB74D" Grid.Column="1" />
+                            </Grid>
+                            <ProgressBar x:Name="DiskBar"
+                                         Minimum="0" Maximum="100" Value="0"
+                                         Height="6" CornerRadius="3"
+                                         Foreground="#FFB74D" Background="#333333" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Network Section -->
+                    <Border Background="#222222" CornerRadius="8" Padding="12">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Network" FontSize="12" Foreground="#888888" FontWeight="Medium" />
+                            <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2,0,0">
+                                <TextBlock Text="↑" FontSize="14" Foreground="#EF5350" VerticalAlignment="Center" />
+                                <TextBlock x:Name="NetworkUpText" Text="0 KB/s" FontSize="12" Foreground="#EF5350"
+                                           Margin="6,0,0,0" VerticalAlignment="Center" Grid.Column="1" />
+                            </Grid>
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                <TextBlock Text="↓" FontSize="14" Foreground="#42A5F5" VerticalAlignment="Center" />
+                                <TextBlock x:Name="NetworkDownText" Text="0 KB/s" FontSize="12" Foreground="#42A5F5"
+                                           Margin="6,0,0,0" VerticalAlignment="Center" Grid.Column="1" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Uptime Section -->
+                    <Border Background="#222222" CornerRadius="8" Padding="12">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Text="System Uptime" FontSize="12" Foreground="#888888" FontWeight="Medium" />
+                            <TextBlock x:Name="UptimeText" Text="0d 0h 0m" FontSize="12" Foreground="#CE93D8" Grid.Column="1" />
+                        </Grid>
+                    </Border>
+
+                </StackPanel>
+            </ScrollViewer>
+
+        </Grid>
+    </Border>
+</Window>
