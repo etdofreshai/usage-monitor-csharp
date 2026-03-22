@@ -2,8 +2,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="UsageMonitor.UsagePopup"
         Title="Usage Monitor"
-        Width="320"
-        Height="400"
+        Width="340"
+        Height="680"
         CanResize="False"
         ShowInTaskbar="False"
         SystemDecorations="None"
@@ -50,9 +50,12 @@
 
             <!-- Content Area -->
             <ScrollViewer Grid.Row="1" Padding="14,10,14,14">
-                <StackPanel Spacing="12">
+                <StackPanel Spacing="10">
 
-                    <!-- CPU Section -->
+                    <!-- ═══════════ SYSTEM SECTION ═══════════ -->
+                    <TextBlock Text="SYSTEM" FontSize="11" Foreground="#555555" FontWeight="Bold" Margin="0,2,0,0" />
+
+                    <!-- CPU -->
                     <Border Background="#222222" CornerRadius="8" Padding="12">
                         <StackPanel Spacing="6">
                             <Grid ColumnDefinitions="*,Auto">
@@ -66,7 +69,7 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Memory Section -->
+                    <!-- Memory -->
                     <Border Background="#222222" CornerRadius="8" Padding="12">
                         <StackPanel Spacing="6">
                             <Grid ColumnDefinitions="*,Auto">
@@ -80,7 +83,7 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Disk Section -->
+                    <!-- Disk -->
                     <Border Background="#222222" CornerRadius="8" Padding="12">
                         <StackPanel Spacing="6">
                             <Grid ColumnDefinitions="*,Auto">
@@ -94,16 +97,16 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Network Section -->
+                    <!-- Network -->
                     <Border Background="#222222" CornerRadius="8" Padding="12">
                         <StackPanel Spacing="6">
                             <TextBlock Text="Network" FontSize="12" Foreground="#888888" FontWeight="Medium" />
-                            <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2,0,0">
+                            <Grid ColumnDefinitions="Auto,*" Margin="0,2,0,0">
                                 <TextBlock Text="↑" FontSize="14" Foreground="#EF5350" VerticalAlignment="Center" />
                                 <TextBlock x:Name="NetworkUpText" Text="0 KB/s" FontSize="12" Foreground="#EF5350"
                                            Margin="6,0,0,0" VerticalAlignment="Center" Grid.Column="1" />
                             </Grid>
-                            <Grid ColumnDefinitions="Auto,*,Auto">
+                            <Grid ColumnDefinitions="Auto,*">
                                 <TextBlock Text="↓" FontSize="14" Foreground="#42A5F5" VerticalAlignment="Center" />
                                 <TextBlock x:Name="NetworkDownText" Text="0 KB/s" FontSize="12" Foreground="#42A5F5"
                                            Margin="6,0,0,0" VerticalAlignment="Center" Grid.Column="1" />
@@ -111,12 +114,81 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Uptime Section -->
+                    <!-- Uptime -->
                     <Border Background="#222222" CornerRadius="8" Padding="12">
                         <Grid ColumnDefinitions="*,Auto">
                             <TextBlock Text="System Uptime" FontSize="12" Foreground="#888888" FontWeight="Medium" />
                             <TextBlock x:Name="UptimeText" Text="0d 0h 0m" FontSize="12" Foreground="#CE93D8" Grid.Column="1" />
                         </Grid>
+                    </Border>
+
+                    <!-- ═══════════ AI CREDITS SECTION ═══════════ -->
+                    <TextBlock Text="AI CREDITS" FontSize="11" Foreground="#555555" FontWeight="Bold" Margin="0,6,0,0" />
+
+                    <!-- OpenRouter -->
+                    <Border x:Name="OpenRouterSection" Background="#222222" CornerRadius="8" Padding="12" IsVisible="False">
+                        <StackPanel Spacing="6">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="OpenRouter" FontSize="12" Foreground="#888888" FontWeight="Medium" />
+                                <TextBlock x:Name="OpenRouterCreditsText" Text="—" FontSize="12" Foreground="#4FC3F7" Grid.Column="1" />
+                            </Grid>
+                            <ProgressBar x:Name="OpenRouterBar"
+                                         Minimum="0" Maximum="100" Value="0"
+                                         Height="6" CornerRadius="3"
+                                         Foreground="#4FC3F7" Background="#333333" />
+                            <TextBlock x:Name="OpenRouterDetailText" Text="" FontSize="10" Foreground="#555555" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- OpenAI -->
+                    <Border x:Name="OpenAiSection" Background="#222222" CornerRadius="8" Padding="12" IsVisible="False">
+                        <StackPanel Spacing="6">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="OpenAI" FontSize="12" Foreground="#888888" FontWeight="Medium" />
+                                <TextBlock x:Name="OpenAiCreditsText" Text="—" FontSize="12" Foreground="#66BB6A" Grid.Column="1" />
+                            </Grid>
+                            <ProgressBar x:Name="OpenAiBar"
+                                         Minimum="0" Maximum="100" Value="0"
+                                         Height="6" CornerRadius="3"
+                                         Foreground="#66BB6A" Background="#333333"
+                                         IsVisible="False" />
+                            <TextBlock x:Name="OpenAiDetailText" Text="" FontSize="10" Foreground="#555555" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Anthropic / Claude -->
+                    <Border x:Name="AnthropicSection" Background="#222222" CornerRadius="8" Padding="12" IsVisible="False">
+                        <StackPanel Spacing="6">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="Anthropic" FontSize="12" Foreground="#888888" FontWeight="Medium" />
+                                <TextBlock x:Name="AnthropicCreditsText" Text="—" FontSize="12" Foreground="#FF8A65" Grid.Column="1" />
+                            </Grid>
+                            <ProgressBar x:Name="AnthropicBar"
+                                         Minimum="0" Maximum="100" Value="0"
+                                         Height="6" CornerRadius="3"
+                                         Foreground="#FF8A65" Background="#333333"
+                                         IsVisible="False" />
+                            <TextBlock x:Name="AnthropicDetailText" Text="" FontSize="10" Foreground="#555555" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Z.ai -->
+                    <Border x:Name="ZaiSection" Background="#222222" CornerRadius="8" Padding="12" IsVisible="False">
+                        <StackPanel Spacing="6">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="Z.ai" FontSize="12" Foreground="#888888" FontWeight="Medium" />
+                                <TextBlock x:Name="ZaiCreditsText" Text="—" FontSize="12" Foreground="#BA68C8" Grid.Column="1" />
+                            </Grid>
+                            <TextBlock x:Name="ZaiDetailText" Text="" FontSize="10" Foreground="#555555" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- No API Keys Configured hint -->
+                    <Border x:Name="NoKeysHint" Background="#1A1A1A" CornerRadius="8" Padding="12" IsVisible="True">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="No API keys configured" FontSize="11" Foreground="#666666" TextWrapping="Wrap" />
+                            <TextBlock x:Name="ConfigPathText" Text="" FontSize="10" Foreground="#444444" TextWrapping="Wrap" />
+                        </StackPanel>
                     </Border>
 
                 </StackPanel>

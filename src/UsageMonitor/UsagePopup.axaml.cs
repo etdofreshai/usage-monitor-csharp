@@ -5,12 +5,15 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Threading;
+using UsageMonitor.Services;
 
 namespace UsageMonitor;
 
 public partial class UsagePopup : Window
 {
-    private readonly DispatcherTimer _refreshTimer;
+    private readonly Config _config;
+    private readonly DispatcherTimer _systemRefreshTimer;
+    private readonly DispatcherTimer _aiRefreshTimer;
     private bool _allowClose;
 
     // Drag state
@@ -26,9 +29,17 @@ public partial class UsagePopup : Window
     // CPU tracking (Windows)
     private PerformanceCounter? _cpuCounter;
 
+    // AI service clients
+    private OpenRouterService? _openRouterService;
+    private OpenAiService? _openAiService;
+    private AnthropicService? _anthropicService;
+    private ZaiService? _zaiService;
+
     public UsagePopup()
     {
         InitializeComponent();
+
+        _config = Config.Load();
 
         // Wire up close button
         CloseButton.Click += (s, e) => HidePopup();
@@ -38,9 +49,13 @@ public partial class UsagePopup : Window
         PointerMoved += OnPointerMoved;
         PointerReleased += OnPointerReleased;
 
-        // Setup refresh timer (updates every 2 seconds)
-        _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
-        _refreshTimer.Tick += RefreshTimer_Tick;
+        // System stats refresh (every 2 seconds)
+        _systemRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+        _systemRefreshTimer.Tick += SystemRefreshTimer_Tick;
+
+        // AI credits refresh (every 30 seconds, configurable)
+        _aiRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(_config.RefreshIntervalSeconds) };
+        _aiRefreshTimer.Tick += AiRefreshTimer_Tick;
 
         // Initialize CPU counter on Windows
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -56,12 +71,57 @@ public partial class UsagePopup : Window
             }
         }
 
+        // Initialize AI services
+        InitializeAiServices();
+
         // Position near taskbar on first show
         Opened += (s, e) =>
         {
             PositionNearTaskbar();
             MakeWindowNonActivating();
         };
+    }
+
+    private void InitializeAiServices()
+    {
+        bool anyConfigured = false;
+
+        if (!string.IsNullOrEmpty(_config.OpenRouterApiKey))
+        {
+            _openRouterService = new OpenRouterService(_config.OpenRouterApiKey);
+            OpenRouterSection.IsVisible = true;
+            anyConfigured = true;
+        }
+
+        if (!string.IsNullOrEmpty(_config.OpenAiAdminKey))
+        {
+            _openAiService = new OpenAiService(_config.OpenAiAdminKey, _config.OpenAiPrepaidBalance);
+            OpenAiSection.IsVisible = true;
+            anyConfigured = true;
+        }
+
+        if (!string.IsNullOrEmpty(_config.AnthropicAdminKey))
+        {
+            _anthropicService = new AnthropicService(_config.AnthropicAdminKey, _config.AnthropicPrepaidBalance);
+            AnthropicSection.IsVisible = true;
+            anyConfigured = true;
+        }
+
+        if (!string.IsNullOrEmpty(_config.ZaiApiKey))
+        {
+            _zaiService = new ZaiService(_config.ZaiApiKey);
+            ZaiSection.IsVisible = true;
+            anyConfigured = true;
+        }
+
+        if (anyConfigured)
+        {
+            NoKeysHint.IsVisible = false;
+        }
+        else
+        {
+            ConfigPathText.Text = $"Config: {Config.GetConfigPath()}";
+        }
     }
 
     public void TogglePopup()
@@ -76,18 +136,28 @@ public partial class UsagePopup : Window
     {
         PositionNearTaskbar();
         Show();
-        RefreshAll();
-        _refreshTimer.Start();
+        RefreshSystem();
+        _systemRefreshTimer.Start();
+
+        // Fetch AI credits immediately, then on timer
+        _ = RefreshAiCreditsAsync();
+        _aiRefreshTimer.Start();
     }
 
     public void HidePopup()
     {
-        _refreshTimer.Stop();
+        _systemRefreshTimer.Stop();
+        _aiRefreshTimer.Stop();
         Hide();
     }
 
     public void ForceClose()
     {
+        _openRouterService?.Dispose();
+        _openAiService?.Dispose();
+        _anthropicService?.Dispose();
+        _zaiService?.Dispose();
+
         _allowClose = true;
         Close();
     }
@@ -97,7 +167,6 @@ public partial class UsagePopup : Window
         if (Screens.Primary is { } screen)
         {
             var workArea = screen.WorkingArea;
-            // Position at bottom-right, just above the taskbar
             Position = new PixelPoint(
                 workArea.X + workArea.Width - (int)Width - 12,
                 workArea.Y + workArea.Height - (int)Height - 12
@@ -105,12 +174,14 @@ public partial class UsagePopup : Window
         }
     }
 
-    private void RefreshTimer_Tick(object? sender, EventArgs e)
+    #region System Stats
+
+    private void SystemRefreshTimer_Tick(object? sender, EventArgs e)
     {
-        RefreshAll();
+        RefreshSystem();
     }
 
-    private void RefreshAll()
+    private void RefreshSystem()
     {
         try
         {
@@ -122,7 +193,7 @@ public partial class UsagePopup : Window
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Refresh error: {ex.Message}");
+            Console.WriteLine($"System refresh error: {ex.Message}");
         }
     }
 
@@ -137,11 +208,6 @@ public partial class UsagePopup : Window
                 cpuPercent = _cpuCounter.NextValue();
             }
             catch { }
-        }
-        else
-        {
-            // Unix: read /proc/stat or use 'top' — simplified fallback
-            cpuPercent = 0;
         }
 
         CpuBar.Value = cpuPercent;
@@ -170,7 +236,6 @@ public partial class UsagePopup : Window
         }
         else
         {
-            // Unix fallback
             var info = GC.GetGCMemoryInfo();
             double totalGB = info.TotalAvailableMemoryBytes / (1024.0 * 1024 * 1024);
             MemoryText.Text = $"~{totalGB:F1} GB total";
@@ -249,6 +314,169 @@ public partial class UsagePopup : Window
         UptimeText.Text = $"{uptime.Days}d {uptime.Hours}h {uptime.Minutes}m";
     }
 
+    #endregion
+
+    #region AI Credits
+
+    private async void AiRefreshTimer_Tick(object? sender, EventArgs e)
+    {
+        await RefreshAiCreditsAsync();
+    }
+
+    private async Task RefreshAiCreditsAsync()
+    {
+        var tasks = new List<Task>();
+
+        if (_openRouterService != null)
+            tasks.Add(RefreshOpenRouterAsync());
+        if (_openAiService != null)
+            tasks.Add(RefreshOpenAiAsync());
+        if (_anthropicService != null)
+            tasks.Add(RefreshAnthropicAsync());
+        if (_zaiService != null)
+            tasks.Add(RefreshZaiAsync());
+
+        await Task.WhenAll(tasks);
+    }
+
+    private async Task RefreshOpenRouterAsync()
+    {
+        try
+        {
+            var status = await _openRouterService!.GetStatusAsync();
+            if (status == null) return;
+
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (status.LimitRemaining.HasValue)
+                {
+                    OpenRouterCreditsText.Text = $"${status.LimitRemaining:F2}";
+
+                    if (status.Limit.HasValue && status.Limit > 0)
+                    {
+                        OpenRouterBar.IsVisible = true;
+                        OpenRouterBar.Value = (status.LimitRemaining.Value / status.Limit.Value) * 100;
+                    }
+                }
+                else
+                {
+                    OpenRouterCreditsText.Text = $"${status.Usage:F2} used";
+                    OpenRouterBar.IsVisible = false;
+                }
+
+                var tier = status.IsFreeTier ? "Free tier" : "Paid";
+                OpenRouterDetailText.Text = $"{tier} | Total used: ${status.Usage:F2}";
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"OpenRouter refresh error: {ex.Message}");
+        }
+    }
+
+    private async Task RefreshOpenAiAsync()
+    {
+        try
+        {
+            var status = await _openAiService!.GetStatusAsync();
+            if (status == null) return;
+
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (status.RemainingCredits.HasValue)
+                {
+                    OpenAiCreditsText.Text = $"${status.RemainingCredits:F2} left";
+                    OpenAiBar.IsVisible = true;
+                    var total = _config.OpenAiPrepaidBalance;
+                    OpenAiBar.Value = total > 0 ? (status.RemainingCredits.Value / total) * 100 : 0;
+                }
+                else
+                {
+                    OpenAiCreditsText.Text = $"${status.MonthCostUsd:F2} /mo";
+                    OpenAiBar.IsVisible = false;
+                }
+
+                OpenAiDetailText.Text = $"Today: ${status.TodayCostUsd:F2} | Month: ${status.MonthCostUsd:F2}";
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"OpenAI refresh error: {ex.Message}");
+        }
+    }
+
+    private async Task RefreshAnthropicAsync()
+    {
+        try
+        {
+            var status = await _anthropicService!.GetStatusAsync();
+            if (status == null) return;
+
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (status.RemainingCredits.HasValue)
+                {
+                    AnthropicCreditsText.Text = $"${status.RemainingCredits:F2} left";
+                    AnthropicBar.IsVisible = true;
+                    var total = _config.AnthropicPrepaidBalance;
+                    AnthropicBar.Value = total > 0 ? (status.RemainingCredits.Value / total) * 100 : 0;
+                }
+                else
+                {
+                    AnthropicCreditsText.Text = $"${status.MonthCostUsd:F2} /mo";
+                    AnthropicBar.IsVisible = false;
+                }
+
+                AnthropicDetailText.Text = $"Today: ${status.TodayCostUsd:F2} | Month: ${status.MonthCostUsd:F2}";
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Anthropic refresh error: {ex.Message}");
+        }
+    }
+
+    private async Task RefreshZaiAsync()
+    {
+        try
+        {
+            var status = await _zaiService!.GetStatusAsync();
+            if (status == null) return;
+
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (status.Quotas.Count > 0)
+                {
+                    var primary = status.Quotas[0];
+                    if (primary.Limit > 0)
+                    {
+                        var remaining = primary.Limit - primary.Used;
+                        ZaiCreditsText.Text = $"{remaining:N0} / {primary.Limit:N0}";
+                    }
+                    else
+                    {
+                        ZaiCreditsText.Text = $"{primary.Used:N0} used";
+                    }
+
+                    var details = status.Quotas
+                        .Where(q => q.Limit > 0 || q.Used > 0)
+                        .Select(q => $"{q.Name}: {q.Used:N0}/{q.Limit:N0}");
+                    ZaiDetailText.Text = string.Join(" | ", details);
+                }
+                else
+                {
+                    ZaiCreditsText.Text = "Connected";
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Z.ai refresh error: {ex.Message}");
+        }
+    }
+
+    #endregion
+
     #region Drag Support
 
     private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
@@ -257,7 +485,6 @@ public partial class UsagePopup : Window
         if (point.Properties.IsLeftButtonPressed)
         {
             var pos = point.Position;
-            // Only drag from the title bar area (top 40px, excluding close button)
             if (pos.Y < 40 && pos.X < Width - 40)
             {
                 _isDragging = true;
@@ -354,7 +581,6 @@ public partial class UsagePopup : Window
     {
         if (!_allowClose)
         {
-            // Prevent closing, just hide
             e.Cancel = true;
             HidePopup();
         }
