@@ -2,8 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="UsageMonitor.UsagePopup"
         Title="Usage Monitor"
-        Width="340"
-        Height="680"
+        Width="572"
         CanResize="False"
         ShowInTaskbar="False"
         SystemDecorations="None"
@@ -11,193 +10,368 @@
         Background="Transparent"
         TransparencyLevelHint="Transparent">
 
-    <Border Background="#E6181818"
-            CornerRadius="12"
+    <Border x:Name="OuterBorder"
+            Background="#E6181818"
+            CornerRadius="18"
             BorderBrush="#404040"
             BorderThickness="1"
-            Padding="0">
+            Padding="12">
 
-        <Grid RowDefinitions="Auto,*">
+        <Grid>
+            <StackPanel x:Name="FullView" Spacing="5">
 
-            <!-- Title Bar -->
-            <Border Grid.Row="0"
-                    Background="#252525"
-                    CornerRadius="12,12,0,0"
-                    Padding="14,10">
-                <Grid ColumnDefinitions="*,Auto">
-                    <TextBlock Grid.Column="0"
-                               Text="Usage Monitor"
-                               FontSize="14"
-                               FontWeight="SemiBold"
-                               Foreground="#E0E0E0"
-                               VerticalAlignment="Center" />
-                    <Button Grid.Column="1"
-                            x:Name="CloseButton"
-                            Width="28" Height="28"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            CornerRadius="14"
-                            Padding="0"
-                            ToolTip.Tip="Close">
-                        <Path Data="M18.3,5.71 L12,12 L5.71,5.71 M5.71,18.29 L12,12 L18.3,18.29"
-                              Stroke="#888888"
-                              StrokeThickness="2"
-                              Width="14" Height="14"
-                              Stretch="Uniform" />
-                    </Button>
+                <TextBlock Text="SYSTEM" FontSize="9" Foreground="#555555" FontWeight="Bold" Margin="0,1,0,0" />
+                <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto">
+                        <Border Grid.Row="0" Grid.Column="0" Background="#222222" CornerRadius="8" Padding="8" Margin="0,0,3,3">
+                            <StackPanel Spacing="4">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Text="CPU" FontSize="10" Foreground="#888888" FontWeight="Medium" />
+                                    <TextBlock x:Name="CpuPercentText" Text="0%" FontSize="10" Foreground="#64B5F6" Grid.Column="1" TextAlignment="Right" />
+                                </Grid>
+                                <ProgressBar x:Name="CpuBar"
+                                             Minimum="0" Maximum="100" Value="0"
+                                             Height="4" CornerRadius="2"
+                                             Foreground="#64B5F6" Background="#333333" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Grid.Row="0" Grid.Column="1" Background="#222222" CornerRadius="8" Padding="8" Margin="0,0,0,3">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Memory" FontSize="10" Foreground="#888888" FontWeight="Medium" />
+                                <TextBlock x:Name="MemoryText" Text="0 / 0 GB" FontSize="10" Foreground="#81C784" />
+                                <ProgressBar x:Name="MemoryBar"
+                                             Minimum="0" Maximum="100" Value="0"
+                                             Height="4" CornerRadius="2"
+                                             Foreground="#81C784" Background="#333333" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Grid.Row="1" Grid.Column="0" Background="#222222" CornerRadius="8" Padding="8" Margin="0,0,3,3">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Disk" FontSize="10" Foreground="#888888" FontWeight="Medium" />
+                                <TextBlock x:Name="DiskText" Text="0 / 0 GB" FontSize="10" Foreground="#FFB74D" />
+                                <ProgressBar x:Name="DiskBar"
+                                             Minimum="0" Maximum="100" Value="0"
+                                             Height="4" CornerRadius="2"
+                                             Foreground="#FFB74D" Background="#333333" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Grid.Row="1" Grid.Column="1" Background="#222222" CornerRadius="8" Padding="8" Margin="0,0,0,3">
+                            <Grid ColumnDefinitions="*,*">
+                                <StackPanel Grid.Column="0" Spacing="2" Margin="0,0,5,0">
+                                    <TextBlock Text="Uptime" FontSize="10" Foreground="#888888" FontWeight="Medium" />
+                                    <TextBlock x:Name="UptimeText" Text="0d 0h 0m" FontSize="11" Foreground="#CE93D8" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="1" Spacing="2" Margin="5,0,0,0">
+                                    <TextBlock Text="Net" FontSize="10" Foreground="#888888" FontWeight="Medium" />
+                                    <TextBlock x:Name="NetworkUpText" Text="? 0 KB/s" FontSize="10" Foreground="#EF5350" />
+                                    <TextBlock x:Name="NetworkDownText" Text="? 0 KB/s" FontSize="10" Foreground="#42A5F5" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
                 </Grid>
-            </Border>
 
-            <!-- Content Area -->
-            <ScrollViewer Grid.Row="1" Padding="14,10,14,14">
-                <StackPanel Spacing="10">
+                <TextBlock Text="AI" FontSize="9" Foreground="#555555" FontWeight="Bold" Margin="0,3,0,0" />
+                <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto">
+                    <Border x:Name="OpenRouterSection" Grid.Row="0" Grid.Column="0" Background="#222222" CornerRadius="8" Padding="8" Margin="0,0,3,0" IsVisible="False">
+                            <StackPanel Spacing="4">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Text="OpenRouter" FontSize="10" Foreground="#888888" FontWeight="Medium" />
+                                    <TextBlock x:Name="OpenRouterCreditsText" Text="—" FontSize="10" Foreground="#4FC3F7" Grid.Column="1" TextAlignment="Right" />
+                                </Grid>
+                                <TextBlock x:Name="OpenRouterRangeText" Text="" FontSize="8" Foreground="#555555" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
 
-                    <!-- ═══════════ SYSTEM SECTION ═══════════ -->
-                    <TextBlock Text="SYSTEM" FontSize="11" Foreground="#555555" FontWeight="Bold" Margin="0,2,0,0" />
+                        <Border x:Name="CodexSection" Grid.Row="0" Grid.Column="1" Background="#222222" CornerRadius="8" Padding="8" Margin="3,0,0,0" IsVisible="False">
+                            <StackPanel Spacing="3">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Text="Codex" FontSize="10" Foreground="#888888" FontWeight="Medium" />
+                                    <TextBlock x:Name="CodexCreditsText" Text="—" FontSize="10" Foreground="#8BC34A" Grid.Column="1" TextAlignment="Right" />
+                                </Grid>
+                                <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="22,*">
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="5h" FontSize="8" Foreground="#666666" VerticalAlignment="Center" Margin="0,0,0,3" />
+                                    <ProgressBar x:Name="CodexPrimaryBar"
+                                                 Grid.Row="0" Grid.Column="1"
+                                                 Minimum="0" Maximum="100" Value="0"
+                                                 Height="4" CornerRadius="2" Margin="0,0,0,3"
+                                                 Foreground="#8BC34A" Background="#333333" />
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="7d" FontSize="8" Foreground="#666666" VerticalAlignment="Center" Margin="0,0,0,3" />
+                                    <ProgressBar x:Name="CodexSecondaryBar"
+                                                 Grid.Row="1" Grid.Column="1"
+                                                 Minimum="0" Maximum="100" Value="0"
+                                                 Height="4" CornerRadius="2" Margin="0,0,0,3"
+                                                 Foreground="#B39DDB" Background="#333333" />
+                                    <TextBlock x:Name="CodexRangeText"
+                                               Grid.Row="2" Grid.ColumnSpan="2"
+                                               Text="" FontSize="8" Foreground="#555555" TextWrapping="Wrap" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
 
-                    <!-- CPU -->
-                    <Border Background="#222222" CornerRadius="8" Padding="12">
-                        <StackPanel Spacing="6">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock Text="CPU" FontSize="12" Foreground="#888888" FontWeight="Medium" />
-                                <TextBlock x:Name="CpuPercentText" Text="0%" FontSize="12" Foreground="#64B5F6" Grid.Column="1" TextAlignment="Right" />
-                            </Grid>
-                            <ProgressBar x:Name="CpuBar"
-                                         Minimum="0" Maximum="100" Value="0"
-                                         Height="6" CornerRadius="3"
-                                         Foreground="#64B5F6" Background="#333333" />
-                        </StackPanel>
-                    </Border>
+                        <Border x:Name="ClaudeCodeSection" Grid.Row="1" Grid.Column="0" Background="#222222" CornerRadius="8" Padding="8" Margin="0,3,3,0" IsVisible="False">
+                            <StackPanel Spacing="3">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Text="Claude" FontSize="10" Foreground="#888888" FontWeight="Medium" />
+                                    <TextBlock x:Name="ClaudeCodeCreditsText" Text="—" FontSize="10" Foreground="#FF8A65" Grid.Column="1" TextAlignment="Right" />
+                                </Grid>
+                                <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="22,*">
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="5h" FontSize="8" Foreground="#666666" VerticalAlignment="Center" Margin="0,0,0,3" />
+                                    <ProgressBar x:Name="ClaudeCodePrimaryBar"
+                                                 Grid.Row="0" Grid.Column="1"
+                                                 Minimum="0" Maximum="100" Value="0"
+                                                 Height="4" CornerRadius="2" Margin="0,0,0,3"
+                                                 Foreground="#FF8A65" Background="#333333" />
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="7d" FontSize="8" Foreground="#666666" VerticalAlignment="Center" Margin="0,0,0,3" />
+                                    <ProgressBar x:Name="ClaudeCodeSecondaryBar"
+                                                 Grid.Row="1" Grid.Column="1"
+                                                 Minimum="0" Maximum="100" Value="0"
+                                                 Height="4" CornerRadius="2" Margin="0,0,0,3"
+                                                 Foreground="#FFB74D" Background="#333333" />
+                                </Grid>
+                                <TextBlock x:Name="ClaudeCodeRangeText" Text="" FontSize="8" Foreground="#555555" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
 
-                    <!-- Memory -->
-                    <Border Background="#222222" CornerRadius="8" Padding="12">
-                        <StackPanel Spacing="6">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock Text="Memory" FontSize="12" Foreground="#888888" FontWeight="Medium" />
-                                <TextBlock x:Name="MemoryText" Text="0 / 0 GB" FontSize="12" Foreground="#81C784" Grid.Column="1" TextAlignment="Right" />
-                            </Grid>
-                            <ProgressBar x:Name="MemoryBar"
-                                         Minimum="0" Maximum="100" Value="0"
-                                         Height="6" CornerRadius="3"
-                                         Foreground="#81C784" Background="#333333" />
-                        </StackPanel>
-                    </Border>
+                        <Border x:Name="ZaiSection" Grid.Row="1" Grid.Column="1" Background="#222222" CornerRadius="8" Padding="8" Margin="3,3,0,0" IsVisible="False">
+                            <StackPanel Spacing="3">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Text="Z.ai" FontSize="10" Foreground="#888888" FontWeight="Medium" />
+                                    <TextBlock x:Name="ZaiCreditsText" Text="—" FontSize="10" Foreground="#BA68C8" Grid.Column="1" TextAlignment="Right" />
+                                </Grid>
+                                <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="22,*">
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="5h" FontSize="8" Foreground="#666666" VerticalAlignment="Center" Margin="0,0,0,3" />
+                                    <ProgressBar x:Name="ZaiTokenBar"
+                                                 Grid.Row="0" Grid.Column="1"
+                                                 Minimum="0" Maximum="100" Value="0"
+                                                 Height="4" CornerRadius="2" Margin="0,0,0,3"
+                                                 Foreground="#BA68C8" Background="#333333" />
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Month" FontSize="8" Foreground="#666666" VerticalAlignment="Center" Margin="0,0,0,3" />
+                                    <ProgressBar x:Name="ZaiMonthlyBar"
+                                                 Grid.Row="1" Grid.Column="1"
+                                                 Minimum="0" Maximum="100" Value="0"
+                                                 Height="4" CornerRadius="2" Margin="0,0,0,3"
+                                                 Foreground="#7E57C2" Background="#333333" />
+                                    <TextBlock x:Name="ZaiDetailText" Grid.Row="2" Grid.ColumnSpan="2" Text="" FontSize="8" Foreground="#555555" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="ZaiTokenText" Grid.Row="3" Grid.ColumnSpan="2" Text="" FontSize="8" Foreground="#555555" TextWrapping="Wrap" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
 
-                    <!-- Disk -->
-                    <Border Background="#222222" CornerRadius="8" Padding="12">
-                        <StackPanel Spacing="6">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock Text="Disk (C:)" FontSize="12" Foreground="#888888" FontWeight="Medium" />
-                                <TextBlock x:Name="DiskText" Text="0 / 0 GB" FontSize="12" Foreground="#FFB74D" Grid.Column="1" TextAlignment="Right" />
-                            </Grid>
-                            <ProgressBar x:Name="DiskBar"
-                                         Minimum="0" Maximum="100" Value="0"
-                                         Height="6" CornerRadius="3"
-                                         Foreground="#FFB74D" Background="#333333" />
-                        </StackPanel>
-                    </Border>
-
-                    <!-- Network -->
-                    <Border Background="#222222" CornerRadius="8" Padding="12">
-                        <StackPanel Spacing="6">
-                            <TextBlock Text="Network" FontSize="12" Foreground="#888888" FontWeight="Medium" />
-                            <Grid ColumnDefinitions="Auto,*" Margin="0,2,0,0">
-                                <TextBlock Text="↑" FontSize="14" Foreground="#EF5350" VerticalAlignment="Center" />
-                                <TextBlock x:Name="NetworkUpText" Text="0 KB/s" FontSize="12" Foreground="#EF5350"
-                                           Margin="6,0,0,0" VerticalAlignment="Center" Grid.Column="1" />
-                            </Grid>
-                            <Grid ColumnDefinitions="Auto,*">
-                                <TextBlock Text="↓" FontSize="14" Foreground="#42A5F5" VerticalAlignment="Center" />
-                                <TextBlock x:Name="NetworkDownText" Text="0 KB/s" FontSize="12" Foreground="#42A5F5"
-                                           Margin="6,0,0,0" VerticalAlignment="Center" Grid.Column="1" />
-                            </Grid>
-                        </StackPanel>
-                    </Border>
-
-                    <!-- Uptime -->
-                    <Border Background="#222222" CornerRadius="8" Padding="12">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Text="System Uptime" FontSize="12" Foreground="#888888" FontWeight="Medium" />
-                            <TextBlock x:Name="UptimeText" Text="0d 0h 0m" FontSize="12" Foreground="#CE93D8" Grid.Column="1" TextAlignment="Right" />
-                        </Grid>
-                    </Border>
-
-                    <!-- ═══════════ AI CREDITS SECTION ═══════════ -->
-                    <TextBlock Text="AI CREDITS" FontSize="11" Foreground="#555555" FontWeight="Bold" Margin="0,6,0,0" />
-
-                    <!-- OpenRouter -->
-                    <Border x:Name="OpenRouterSection" Background="#222222" CornerRadius="8" Padding="12" IsVisible="False">
-                        <StackPanel Spacing="6">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock Text="OpenRouter" FontSize="12" Foreground="#888888" FontWeight="Medium" />
-                                <TextBlock x:Name="OpenRouterCreditsText" Text="—" FontSize="12" Foreground="#4FC3F7" Grid.Column="1" TextAlignment="Right" />
-                            </Grid>
-                            <ProgressBar x:Name="OpenRouterBar"
-                                         Minimum="0" Maximum="100" Value="0"
-                                         Height="6" CornerRadius="3"
-                                         Foreground="#4FC3F7" Background="#333333" />
-                            <TextBlock x:Name="OpenRouterDetailText" Text="" FontSize="10" Foreground="#555555" />
-                            <TextBlock x:Name="OpenRouterResetText" Text="" FontSize="10" Foreground="#666666" IsVisible="False" />
-                        </StackPanel>
-                    </Border>
-
-                    <!-- OpenAI -->
-                    <Border x:Name="OpenAiSection" Background="#222222" CornerRadius="8" Padding="12" IsVisible="False">
-                        <StackPanel Spacing="6">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock Text="OpenAI" FontSize="12" Foreground="#888888" FontWeight="Medium" />
-                                <TextBlock x:Name="OpenAiCreditsText" Text="—" FontSize="12" Foreground="#66BB6A" Grid.Column="1" TextAlignment="Right" />
-                            </Grid>
-                            <ProgressBar x:Name="OpenAiBar"
-                                         Minimum="0" Maximum="100" Value="0"
-                                         Height="6" CornerRadius="3"
-                                         Foreground="#66BB6A" Background="#333333"
-                                         IsVisible="False" />
-                            <TextBlock x:Name="OpenAiDetailText" Text="" FontSize="10" Foreground="#555555" />
-                            <TextBlock x:Name="OpenAiResetText" Text="" FontSize="10" Foreground="#666666" IsVisible="False" />
-                        </StackPanel>
-                    </Border>
-
-                    <!-- Anthropic / Claude -->
-                    <Border x:Name="AnthropicSection" Background="#222222" CornerRadius="8" Padding="12" IsVisible="False">
-                        <StackPanel Spacing="6">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock Text="Anthropic" FontSize="12" Foreground="#888888" FontWeight="Medium" />
-                                <TextBlock x:Name="AnthropicCreditsText" Text="—" FontSize="12" Foreground="#FF8A65" Grid.Column="1" TextAlignment="Right" />
-                            </Grid>
-                            <ProgressBar x:Name="AnthropicBar"
-                                         Minimum="0" Maximum="100" Value="0"
-                                         Height="6" CornerRadius="3"
-                                         Foreground="#FF8A65" Background="#333333"
-                                         IsVisible="False" />
-                            <TextBlock x:Name="AnthropicDetailText" Text="" FontSize="10" Foreground="#555555" />
-                            <TextBlock x:Name="AnthropicResetText" Text="" FontSize="10" Foreground="#666666" IsVisible="False" />
-                        </StackPanel>
-                    </Border>
-
-                    <!-- Z.ai -->
-                    <Border x:Name="ZaiSection" Background="#222222" CornerRadius="8" Padding="12" IsVisible="False">
-                        <StackPanel Spacing="6">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock Text="Z.ai" FontSize="12" Foreground="#888888" FontWeight="Medium" />
-                                <TextBlock x:Name="ZaiCreditsText" Text="—" FontSize="12" Foreground="#BA68C8" Grid.Column="1" TextAlignment="Right" />
-                            </Grid>
-                            <TextBlock x:Name="ZaiDetailText" Text="" FontSize="10" Foreground="#555555" />
-                            <TextBlock x:Name="ZaiResetText" Text="" FontSize="10" Foreground="#666666" IsVisible="False" />
-                        </StackPanel>
-                    </Border>
-
-                    <!-- No API Keys Configured hint -->
-                    <Border x:Name="NoKeysHint" Background="#1A1A1A" CornerRadius="8" Padding="12" IsVisible="True">
-                        <StackPanel Spacing="4">
-                            <TextBlock Text="No API keys configured" FontSize="11" Foreground="#666666" TextWrapping="Wrap" />
-                            <TextBlock x:Name="ConfigPathText" Text="" FontSize="10" Foreground="#444444" TextWrapping="Wrap" />
+                    <Border x:Name="NoKeysHint" Background="#1A1A1A" CornerRadius="8" Padding="10" IsVisible="True">
+                        <StackPanel Spacing="3">
+                            <TextBlock Text="No API keys configured" FontSize="10" Foreground="#666666" TextWrapping="Wrap" />
+                            <TextBlock x:Name="ConfigPathText" Text="" FontSize="9" Foreground="#444444" TextWrapping="Wrap" />
                         </StackPanel>
                     </Border>
 
                 </StackPanel>
-            </ScrollViewer>
+
+            <Border x:Name="CompactView"
+                    IsVisible="False"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Bottom"
+                    Width="240"
+                    Background="#E6181818"
+                    CornerRadius="18"
+                    BorderBrush="#404040"
+                    BorderThickness="1"
+                    Padding="5,5,5,10">
+                <StackPanel Spacing="3">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="AI"
+                                   FontSize="9"
+                                   Foreground="#555555"
+                                   FontWeight="Bold"
+                                   VerticalAlignment="Center" />
+                        <Button x:Name="RestoreFullButton"
+                                Grid.Column="1"
+                                Width="22" Height="22"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                CornerRadius="11"
+                                Padding="0"
+                                ToolTip.Tip="Restore full">
+                            <Image x:Name="RestoreFullIcon"
+                                   Width="16"
+                                   Height="16" />
+                        </Button>
+                    </Grid>
+
+                    <StackPanel x:Name="OpenRouterCompactSection" Spacing="0">
+                        <Grid ColumnDefinitions="58,*">
+                            <TextBlock Text="OpenRouter"
+                                       FontSize="9"
+                                       Foreground="#4FC3F7"
+                                       FontWeight="SemiBold" />
+                            <TextBlock x:Name="OpenRouterCompactText"
+                                       Text="—"
+                                       FontSize="8"
+                                       Foreground="#BDEEFF"
+                                       Grid.Column="1"
+                                       HorizontalAlignment="Right"
+                                       TextAlignment="Right" />
+                        </Grid>
+                    </StackPanel>
+
+                    <StackPanel x:Name="CodexCompactSection" Spacing="0">
+                        <Grid ColumnDefinitions="58,*">
+                            <TextBlock Text="Codex"
+                                       FontSize="9"
+                                       Foreground="#8BC34A"
+                                       FontWeight="SemiBold" />
+                            <TextBlock x:Name="CodexCompactText"
+                                       Text="—"
+                                       FontSize="8"
+                                       Foreground="#D3F2A3"
+                                       Grid.Column="1"
+                                       HorizontalAlignment="Right"
+                                       TextAlignment="Right" />
+                        </Grid>
+                        <ProgressBar x:Name="CodexCompactPrimaryBar"
+                                     Minimum="0" Maximum="100" Value="0"
+                                     Height="3"
+                                     Foreground="#8BC34A"
+                                     Background="#333333" />
+                        <ProgressBar x:Name="CodexCompactSecondaryBar"
+                                     Minimum="0" Maximum="100" Value="0"
+                                     Height="3"
+                                     Foreground="#B39DDB"
+                                     Background="#333333" />
+                    </StackPanel>
+
+                    <StackPanel x:Name="ClaudeCompactSection" Spacing="0">
+                        <Grid ColumnDefinitions="58,*">
+                            <TextBlock Text="Claude"
+                                       FontSize="9"
+                                       Foreground="#FF8A65"
+                                       FontWeight="SemiBold" />
+                            <TextBlock x:Name="ClaudeCompactText"
+                                       Text="—"
+                                       FontSize="8"
+                                       Foreground="#FFD3C0"
+                                       Grid.Column="1"
+                                       HorizontalAlignment="Right"
+                                       TextAlignment="Right" />
+                        </Grid>
+                        <ProgressBar x:Name="ClaudeCompactPrimaryBar"
+                                     Minimum="0" Maximum="100" Value="0"
+                                     Height="3"
+                                     Foreground="#FF8A65"
+                                     Background="#333333" />
+                        <ProgressBar x:Name="ClaudeCompactSecondaryBar"
+                                     Minimum="0" Maximum="100" Value="0"
+                                     Height="3"
+                                     Foreground="#FFB74D"
+                                     Background="#333333" />
+                    </StackPanel>
+
+                    <StackPanel x:Name="ZaiCompactSection" Spacing="0">
+                        <Grid ColumnDefinitions="58,*">
+                            <TextBlock Text="Z.ai"
+                                       FontSize="9"
+                                       Foreground="#BA68C8"
+                                       FontWeight="SemiBold" />
+                            <TextBlock x:Name="ZaiCompactText"
+                                       Text="—"
+                                       FontSize="8"
+                                       Foreground="#E1C5EA"
+                                       Grid.Column="1"
+                                       HorizontalAlignment="Right"
+                                       TextAlignment="Right" />
+                        </Grid>
+                        <ProgressBar x:Name="ZaiCompactPrimaryBar"
+                                     Minimum="0" Maximum="100" Value="0"
+                                     Height="3"
+                                     Foreground="#BA68C8"
+                                     Background="#333333" />
+                        <ProgressBar x:Name="ZaiCompactSecondaryBar"
+                                     Minimum="0" Maximum="100" Value="0"
+                                     Height="3"
+                                     Foreground="#7E57C2"
+                                     Background="#333333" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <Border x:Name="IconOnlyView"
+                    IsVisible="False"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Bottom"
+                    Width="54"
+                    Height="54"
+                    Background="#E6181818"
+                    CornerRadius="16"
+                    BorderBrush="#404040"
+                    BorderThickness="1"
+                    Padding="6">
+                <Button x:Name="RestoreIconButton"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Padding="0"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"
+                        ToolTip.Tip="Restore full">
+                    <Image x:Name="RestoreIconImage"
+                           Width="26"
+                           Height="26"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center" />
+                </Button>
+            </Border>
+
+            <StackPanel HorizontalAlignment="Right"
+                        VerticalAlignment="Top"
+                        Orientation="Horizontal"
+                        Spacing="4">
+                <Button x:Name="CompactButton"
+                        Width="28" Height="24"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        CornerRadius="12"
+                        Padding="0"
+                        ToolTip.Tip="Compact AI view">
+                    <TextBlock Text="AI"
+                               FontSize="10"
+                               Foreground="#B0B0B0"
+                               FontWeight="SemiBold"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center" />
+                </Button>
+
+                <Button x:Name="IconOnlyButton"
+                        Width="24" Height="24"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        CornerRadius="12"
+                        Padding="0"
+                        ToolTip.Tip="Icon only view">
+                    <Image x:Name="IconOnlyButtonImage"
+                           Width="14"
+                           Height="14" />
+                </Button>
+
+                <Button x:Name="CloseButton"
+                        Width="24" Height="24"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        CornerRadius="13"
+                        Padding="0"
+                        ToolTip.Tip="Close">
+                    <Path Data="M18.3,5.71 L12,12 L5.71,5.71 M5.71,18.29 L12,12 L18.3,18.29"
+                          Stroke="#888888"
+                          StrokeThickness="2"
+                          Width="14" Height="14"
+                          Stretch="Uniform" />
+                </Button>
+            </StackPanel>
 
         </Grid>
     </Border>
 </Window>
+

@@ -64,6 +64,7 @@ public partial class App : Application
             _trayIcon = new TrayIcon
             {
                 ToolTipText = "Usage Monitor",
+                Icon = AppIcon.Create(),
                 Menu = trayMenu,
                 IsVisible = true
             };
@@ -73,6 +74,8 @@ public partial class App : Application
 
             var icons = new TrayIcons { _trayIcon };
             SetValue(TrayIcon.IconsProperty, icons);
+
+            Dispatcher.UIThread.Post(() => _popup.ShowPopup());
         }
 
         base.OnFrameworkInitializationCompleted();

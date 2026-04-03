@@ -1,19 +1,37 @@
 using System.Diagnostics;
 using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using UsageMonitor.Services;
 
 namespace UsageMonitor;
 
 public partial class UsagePopup : Window
 {
+    private enum PopupViewMode
+    {
+        Full,
+        Compact,
+        IconOnly,
+    }
+
+    private const double FullWidth = 572;
+    private const double FullHeight = 450;
+    private const double CompactWidth = 390;
+    private const double CompactHeight = 124;
+    private const double IconOnlySize = 54;
+
     private readonly Config _config;
     private readonly DispatcherTimer _systemRefreshTimer;
     private readonly DispatcherTimer _aiRefreshTimer;
+    private readonly Bitmap _appBitmap;
+    private PopupViewMode _viewMode = PopupViewMode.Full;
     private bool _allowClose;
 
     // Drag state
@@ -31,20 +49,28 @@ public partial class UsagePopup : Window
 
     // AI service clients
     private OpenRouterService? _openRouterService;
-    private OpenAiService? _openAiService;
-    private AnthropicService? _anthropicService;
+    private CodexLocalService? _codexLocalService;
+    private ClaudeCodeLocalService? _claudeCodeLocalService;
     private ZaiService? _zaiService;
 
     public UsagePopup()
     {
         InitializeComponent();
+        Icon = AppIcon.Create();
+        _appBitmap = AppIcon.CreateBitmap();
+        RestoreFullIcon.Source = _appBitmap;
+        IconOnlyButtonImage.Source = _appBitmap;
+        RestoreIconImage.Source = _appBitmap;
 
         _config = Config.Load();
 
         // Wire up close button
         CloseButton.Click += (s, e) => HidePopup();
-
-        // Enable dragging from title bar area
+        CompactButton.Click += (s, e) => SetViewMode(PopupViewMode.Compact);
+        IconOnlyButton.Click += (s, e) => SetViewMode(PopupViewMode.IconOnly);
+        RestoreFullButton.Click += (s, e) => SetViewMode(PopupViewMode.Full);
+        RestoreIconButton.Click += (s, e) => SetViewMode(PopupViewMode.Full);
+        // Enable dragging from title bar area (works in all modes including compact)
         PointerPressed += OnPointerPressed;
         PointerMoved += OnPointerMoved;
         PointerReleased += OnPointerReleased;
@@ -54,7 +80,8 @@ public partial class UsagePopup : Window
         _systemRefreshTimer.Tick += SystemRefreshTimer_Tick;
 
         // AI credits refresh (every 30 seconds, configurable)
-        _aiRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(_config.RefreshIntervalSeconds) };
+        var aiRefreshIntervalSeconds = Math.Max(_config.RefreshIntervalSeconds, 300);
+        _aiRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(aiRefreshIntervalSeconds) };
         _aiRefreshTimer.Tick += AiRefreshTimer_Tick;
 
         // Initialize CPU counter on Windows
@@ -73,12 +100,26 @@ public partial class UsagePopup : Window
 
         // Initialize AI services
         InitializeAiServices();
+        SetViewMode(PopupViewMode.Full);
 
-        // Position near taskbar on first show
+        // Position near taskbar on first show only
         Opened += (s, e) =>
         {
-            PositionNearTaskbar();
             MakeWindowNonActivating();
+            // Position after layout so Bounds reflects actual rendered size
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (Screens.Primary is { } screen)
+                {
+                    var workArea = screen.WorkingArea;
+                    var scaling = screen.Scaling;
+                    var pixelW = (int)(Bounds.Width * scaling);
+                    var pixelH = (int)(Bounds.Height * scaling);
+                    Position = new PixelPoint(
+                        workArea.X + workArea.Width - pixelW,
+                        workArea.Y + workArea.Height - pixelH);
+                }
+            }, DispatcherPriority.Loaded);
         };
     }
 
@@ -93,17 +134,17 @@ public partial class UsagePopup : Window
             anyConfigured = true;
         }
 
-        if (!string.IsNullOrEmpty(_config.OpenAiAdminKey))
+        _codexLocalService = new CodexLocalService();
+        if (_codexLocalService.IsAvailable())
         {
-            _openAiService = new OpenAiService(_config.OpenAiAdminKey, _config.OpenAiPrepaidBalance);
-            OpenAiSection.IsVisible = true;
+            CodexSection.IsVisible = true;
             anyConfigured = true;
         }
 
-        if (!string.IsNullOrEmpty(_config.AnthropicAdminKey))
+        _claudeCodeLocalService = new ClaudeCodeLocalService();
+        if (_claudeCodeLocalService.IsAvailable())
         {
-            _anthropicService = new AnthropicService(_config.AnthropicAdminKey, _config.AnthropicPrepaidBalance);
-            AnthropicSection.IsVisible = true;
+            ClaudeCodeSection.IsVisible = true;
             anyConfigured = true;
         }
 
@@ -127,14 +168,19 @@ public partial class UsagePopup : Window
     public void TogglePopup()
     {
         if (IsVisible)
-            HidePopup();
+        {
+            if (_viewMode == PopupViewMode.Full)
+                HidePopup();
+            else
+                SetViewMode(PopupViewMode.Full);
+        }
         else
             ShowPopup();
     }
 
     public void ShowPopup()
     {
-        PositionNearTaskbar();
+        SetViewMode(PopupViewMode.Full, anchorBottomRight: false);
         Show();
         RefreshSystem();
         _systemRefreshTimer.Start();
@@ -154,23 +200,22 @@ public partial class UsagePopup : Window
     public void ForceClose()
     {
         _openRouterService?.Dispose();
-        _openAiService?.Dispose();
-        _anthropicService?.Dispose();
+        _claudeCodeLocalService?.Dispose();
         _zaiService?.Dispose();
 
         _allowClose = true;
         Close();
     }
 
-    private void PositionNearTaskbar()
+    private void PositionNearTaskbar(double? targetWidth = null, double? targetHeight = null)
     {
         if (Screens.Primary is { } screen)
         {
             var workArea = screen.WorkingArea;
             var scaling = screen.Scaling;
-            var pixelWidth = (int)(Width * scaling);
-            var pixelHeight = (int)(Height * scaling);
-            var margin = (int)(12 * scaling);
+            var pixelWidth = (int)((targetWidth ?? Width) * scaling);
+            var pixelHeight = (int)((targetHeight ?? Height) * scaling);
+            var margin = (int)(4 * scaling);
             Position = new PixelPoint(
                 workArea.X + workArea.Width - pixelWidth - margin,
                 workArea.Y + workArea.Height - pixelHeight - margin
@@ -291,8 +336,8 @@ public partial class UsagePopup : Window
                     double upSpeed = (totalSent - _lastBytesSent) / elapsed;
                     double downSpeed = (totalReceived - _lastBytesReceived) / elapsed;
 
-                    NetworkUpText.Text = FormatSpeed(upSpeed);
-                    NetworkDownText.Text = FormatSpeed(downSpeed);
+                    NetworkUpText.Text = $"↑ {FormatSpeed(upSpeed)}";
+                    NetworkDownText.Text = $"↓ {FormatSpeed(downSpeed)}";
                 }
             }
 
@@ -333,14 +378,15 @@ public partial class UsagePopup : Window
 
         if (_openRouterService != null)
             tasks.Add(RefreshOpenRouterAsync());
-        if (_openAiService != null)
-            tasks.Add(RefreshOpenAiAsync());
-        if (_anthropicService != null)
-            tasks.Add(RefreshAnthropicAsync());
+        if (_codexLocalService != null)
+            tasks.Add(RefreshCodexAsync());
+        if (_claudeCodeLocalService != null)
+            tasks.Add(RefreshClaudeCodeAsync());
         if (_zaiService != null)
             tasks.Add(RefreshZaiAsync());
 
         await Task.WhenAll(tasks);
+        UpdateCompactSummary();
     }
 
     private async Task RefreshOpenRouterAsync()
@@ -352,24 +398,44 @@ public partial class UsagePopup : Window
 
             Dispatcher.UIThread.Post(() =>
             {
-                if (status.LimitRemaining.HasValue)
-                {
-                    OpenRouterCreditsText.Text = $"${status.LimitRemaining:F2}";
+                var usedCredits = GetOpenRouterUsedCredits(status);
+                var remainingCredits = GetOpenRouterRemainingCredits(status);
+                var totalCredits = status.TotalCredits ?? status.Limit;
 
-                    if (status.Limit.HasValue && status.Limit > 0)
-                    {
-                        OpenRouterBar.IsVisible = true;
-                        OpenRouterBar.Value = (status.LimitRemaining.Value / status.Limit.Value) * 100;
-                    }
+                if (usedCredits.HasValue)
+                {
+                    var remaining = remainingCredits ?? (totalCredits.HasValue
+                        ? Math.Max(0, totalCredits.Value - usedCredits.Value)
+                        : (double?)null);
+                    OpenRouterCreditsText.Text = remaining.HasValue
+                        ? $"${usedCredits.Value:F2} used | ${remaining.Value:F2} left"
+                        : $"${usedCredits.Value:F2} used";
                 }
                 else
                 {
-                    OpenRouterCreditsText.Text = $"${status.Usage:F2} used";
-                    OpenRouterBar.IsVisible = false;
+                    var remaining = remainingCredits ?? (totalCredits.HasValue
+                        ? Math.Max(0, totalCredits.Value - status.Usage)
+                        : (double?)null);
+                    OpenRouterCreditsText.Text = remaining.HasValue
+                        ? $"${status.Usage:F2} used | ${remaining.Value:F2} left"
+                        : $"${status.Usage:F2} used";
                 }
 
-                var tier = status.IsFreeTier ? "Free tier" : "Paid";
-                OpenRouterDetailText.Text = $"{tier} | Total used: ${status.Usage:F2}";
+                if (remainingCredits.HasValue)
+                {
+                    OpenRouterCompactText.Text = $"${remainingCredits.Value:F2} left";
+                }
+                else if (totalCredits.HasValue && usedCredits.HasValue)
+                {
+                    OpenRouterCompactText.Text = $"${Math.Max(0, totalCredits.Value - usedCredits.Value):F2} left";
+                }
+                else
+                {
+                    OpenRouterCompactText.Text = "—";
+                }
+
+                OpenRouterRangeText.Text = GetOpenRouterPeriodText(status);
+                UpdateCompactSummary();
             });
         }
         catch (Exception ex)
@@ -378,65 +444,138 @@ public partial class UsagePopup : Window
         }
     }
 
-    private async Task RefreshOpenAiAsync()
+    private void SetViewMode(PopupViewMode mode, bool anchorBottomRight = true)
     {
-        try
-        {
-            var status = await _openAiService!.GetStatusAsync();
-            if (status == null) return;
+        // Capture current bottom-right pixel position before resizing
+        var scaling = Screens.Primary?.Scaling ?? 1;
+        var oldPixelW = (int)(Bounds.Width * scaling);
+        var oldPixelH = (int)(Bounds.Height * scaling);
+        var bottomRight = new PixelPoint(Position.X + oldPixelW, Position.Y + oldPixelH);
 
+        _viewMode = mode;
+
+        FullView.IsVisible = mode == PopupViewMode.Full;
+        CompactView.IsVisible = mode == PopupViewMode.Compact;
+        IconOnlyView.IsVisible = mode == PopupViewMode.IconOnly;
+
+        CompactButton.IsVisible = mode == PopupViewMode.Full;
+        IconOnlyButton.IsVisible = mode == PopupViewMode.Full;
+        CloseButton.IsVisible = mode == PopupViewMode.Full;
+
+        // Full mode: outer border visible; compact/icon: transparent wrapper
+        if (mode == PopupViewMode.Full)
+        {
+            OuterBorder.Background = Avalonia.Media.Brush.Parse("#E6181818");
+            OuterBorder.BorderThickness = new Thickness(1);
+            OuterBorder.Padding = new Thickness(12);
+            OuterBorder.CornerRadius = new CornerRadius(18);
+            SizeToContent = SizeToContent.Height;
+            Width = FullWidth;
+        }
+        else
+        {
+            OuterBorder.Background = Avalonia.Media.Brushes.Transparent;
+            OuterBorder.BorderThickness = new Thickness(0);
+            OuterBorder.Padding = new Thickness(0);
+            OuterBorder.CornerRadius = new CornerRadius(0);
+            SizeToContent = SizeToContent.WidthAndHeight;
+        }
+
+        UpdateCompactSummary();
+        InvalidateMeasure();
+        InvalidateArrange();
+        UpdateLayout();
+
+        if (anchorBottomRight)
+        {
+            // Reposition so bottom-right stays at the same spot
             Dispatcher.UIThread.Post(() =>
             {
-                if (status.RemainingCredits.HasValue)
-                {
-                    OpenAiCreditsText.Text = $"${status.RemainingCredits:F2} left";
-                    OpenAiBar.IsVisible = true;
-                    var total = _config.OpenAiPrepaidBalance;
-                    OpenAiBar.Value = total > 0 ? (status.RemainingCredits.Value / total) * 100 : 0;
-                }
-                else
-                {
-                    OpenAiCreditsText.Text = $"${status.MonthCostUsd:F2} /mo";
-                    OpenAiBar.IsVisible = false;
-                }
-
-                OpenAiDetailText.Text = $"Today: ${status.TodayCostUsd:F2} | Month: ${status.MonthCostUsd:F2}";
-            });
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"OpenAI refresh error: {ex.Message}");
+                var s = Screens.Primary?.Scaling ?? 1;
+                var newPixelW = (int)(Bounds.Width * s);
+                var newPixelH = (int)(Bounds.Height * s);
+                Position = new PixelPoint(
+                    bottomRight.X - newPixelW,
+                    bottomRight.Y - newPixelH);
+            }, DispatcherPriority.Loaded);
         }
     }
 
-    private async Task RefreshAnthropicAsync()
+    private void UpdateCompactSummary()
+    {
+        if (OpenRouterCompactSection == null)
+            return;
+
+        OpenRouterCompactSection.IsVisible = OpenRouterSection.IsVisible;
+        CodexCompactSection.IsVisible = CodexSection.IsVisible;
+        ClaudeCompactSection.IsVisible = ClaudeCodeSection.IsVisible;
+        ZaiCompactSection.IsVisible = ZaiSection.IsVisible;
+
+        if (string.IsNullOrWhiteSpace(OpenRouterCompactText.Text))
+        {
+            OpenRouterCompactText.Text = "—";
+        }
+
+        CodexCompactText.Text = $"{CodexPrimaryBar.Value:F0}%/{CodexSecondaryBar.Value:F0}% used";
+        CodexCompactPrimaryBar.Value = CodexPrimaryBar.Value;
+        CodexCompactSecondaryBar.Value = CodexSecondaryBar.Value;
+
+        ClaudeCompactText.Text = $"{ClaudeCodePrimaryBar.Value:F0}%/{ClaudeCodeSecondaryBar.Value:F0}% used";
+        ClaudeCompactPrimaryBar.Value = ClaudeCodePrimaryBar.Value;
+        ClaudeCompactSecondaryBar.Value = ClaudeCodeSecondaryBar.Value;
+
+        ZaiCompactText.Text = EnsureUsedSuffix((ZaiDetailText.Text ?? "—")
+            .Replace(" monthly prompts", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace(" / ", "/", StringComparison.OrdinalIgnoreCase));
+        ZaiCompactPrimaryBar.Value = ZaiTokenBar.IsVisible ? ZaiTokenBar.Value : 0;
+        ZaiCompactSecondaryBar.Value = ZaiMonthlyBar.IsVisible ? ZaiMonthlyBar.Value : 0;
+    }
+    private async Task RefreshCodexAsync()
     {
         try
         {
-            var status = await _anthropicService!.GetStatusAsync();
+            var status = await _codexLocalService!.GetStatusAsync();
             if (status == null) return;
 
             Dispatcher.UIThread.Post(() =>
             {
-                if (status.RemainingCredits.HasValue)
-                {
-                    AnthropicCreditsText.Text = $"${status.RemainingCredits:F2} left";
-                    AnthropicBar.IsVisible = true;
-                    var total = _config.AnthropicPrepaidBalance;
-                    AnthropicBar.Value = total > 0 ? (status.RemainingCredits.Value / total) * 100 : 0;
-                }
-                else
-                {
-                    AnthropicCreditsText.Text = $"${status.MonthCostUsd:F2} /mo";
-                    AnthropicBar.IsVisible = false;
-                }
+                var primaryUsed = Math.Clamp(status.Primary.UsedPercent, 0, 100);
+                var secondaryUsed = Math.Clamp(status.Secondary.UsedPercent, 0, 100);
 
-                AnthropicDetailText.Text = $"Today: ${status.TodayCostUsd:F2} | Month: ${status.MonthCostUsd:F2}";
+                CodexCreditsText.Text = $"{primaryUsed:F0}% / {secondaryUsed:F0}% used";
+                CodexPrimaryBar.Value = primaryUsed;
+                CodexSecondaryBar.Value = secondaryUsed;
+
+                CodexRangeText.Text = $"Resets 5h {FormatResetTime(status.Primary.ResetsAt)} | 7d {FormatResetTime(status.Secondary.ResetsAt)}";
+                UpdateCompactSummary();
             });
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Anthropic refresh error: {ex.Message}");
+            Console.WriteLine($"Codex refresh error: {ex.Message}");
+        }
+    }
+
+    private async Task RefreshClaudeCodeAsync()
+    {
+        try
+        {
+            var status = await _claudeCodeLocalService!.GetStatusAsync();
+            if (status == null) return;
+
+            Dispatcher.UIThread.Post(() =>
+            {
+                ClaudeCodeCreditsText.Text = $"{status.FiveHour.UtilizationPercent:F0}% / {status.SevenDay.UtilizationPercent:F0}% used";
+                ClaudeCodePrimaryBar.Value = status.FiveHour.UtilizationPercent;
+                ClaudeCodeSecondaryBar.Value = status.SevenDay.UtilizationPercent;
+
+                ClaudeCodeRangeText.Text = $"Resets 5h {FormatResetTime(status.FiveHour.ResetsAt)} | 7d {FormatResetTime(status.SevenDay.ResetsAt)}";
+                UpdateCompactSummary();
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Claude Code refresh error: {ex.Message}");
         }
     }
 
@@ -451,39 +590,51 @@ public partial class UsagePopup : Window
             {
                 if (status.Quotas.Count > 0)
                 {
-                    var primary = status.Quotas[0];
-                    if (primary.Limit > 0)
+                    var tokenQuota = status.Quotas.FirstOrDefault(q => q.Type.Equals("TOKENS_LIMIT", StringComparison.OrdinalIgnoreCase));
+                    var monthlyQuota = status.Quotas.FirstOrDefault(q => q.Type.Equals("TIME_LIMIT", StringComparison.OrdinalIgnoreCase));
+
+                    if (tokenQuota != null)
                     {
-                        var remaining = primary.Limit - primary.Used;
-                        ZaiCreditsText.Text = $"{remaining:N0} / {primary.Limit:N0}";
+                        var tokenPercent = tokenQuota.Percentage ?? 0;
+                        ZaiCreditsText.Text = $"{tokenPercent:F0}% used";
+                        ZaiTokenBar.Value = tokenPercent;
+                        ZaiTokenBar.IsVisible = true;
+                        ZaiTokenText.Text = tokenQuota.ResetsAt.HasValue
+                            ? $"Resets {FormatResetTime(tokenQuota.ResetsAt)}"
+                            : "Resets unknown";
                     }
                     else
                     {
-                        ZaiCreditsText.Text = $"{primary.Used:N0} used";
+                        ZaiCreditsText.Text = "Connected";
+                        ZaiTokenBar.IsVisible = false;
+                        ZaiTokenText.Text = string.Empty;
                     }
 
-                    var details = status.Quotas
-                        .Where(q => q.Limit > 0 || q.Used > 0)
-                        .Select(q => $"{q.Name}: {q.Used:N0}/{q.Limit:N0}");
-                    ZaiDetailText.Text = string.Join(" | ", details);
+                    if (monthlyQuota != null && monthlyQuota.Limit.HasValue)
+                    {
+                        var used = monthlyQuota.CurrentValue ?? monthlyQuota.Used ?? 0;
+                        var usedPercent = monthlyQuota.Percentage ?? (used / (double)monthlyQuota.Limit.Value * 100.0);
+
+                        ZaiMonthlyBar.Value = usedPercent;
+                        ZaiMonthlyBar.IsVisible = true;
+                        ZaiDetailText.Text = $"{used:N0} / {monthlyQuota.Limit.Value:N0} monthly prompts";
+                        ZaiTokenText.Text = monthlyQuota.ResetsAt.HasValue
+                            ? $"Resets {FormatResetTime(monthlyQuota.ResetsAt)}"
+                            : "Resets unknown";
+                    }
+                    else
+                    {
+                        ZaiMonthlyBar.IsVisible = false;
+                        ZaiDetailText.Text = "Monthly prompts not exposed here";
+                        ZaiTokenText.Text = string.Empty;
+                    }
                 }
                 else
                 {
                     ZaiCreditsText.Text = "Connected";
                 }
 
-                // Show reset time from the first quota that has one
-                var resetQuota = status.Quotas.FirstOrDefault(q => !string.IsNullOrEmpty(q.ResetsAt));
-                var resetText = FormatResetTime(resetQuota?.ResetsAt);
-                if (resetText != null)
-                {
-                    ZaiResetText.Text = resetText;
-                    ZaiResetText.IsVisible = true;
-                }
-                else
-                {
-                    ZaiResetText.IsVisible = false;
-                }
+                UpdateCompactSummary();
             });
         }
         catch (Exception ex)
@@ -492,20 +643,159 @@ public partial class UsagePopup : Window
         }
     }
 
-    private static string? FormatResetTime(string? resetsAtRaw)
+    #endregion
+
+    private static double? GetOpenRouterUsedCredits(OpenRouterStatus status)
     {
-        if (string.IsNullOrEmpty(resetsAtRaw)) return null;
-        if (!DateTime.TryParse(resetsAtRaw, null, System.Globalization.DateTimeStyles.RoundtripKind, out var resetUtc))
-            return null;
-        var resetLocal = resetUtc.ToLocalTime();
-        var remaining = resetLocal - DateTime.Now;
-        if (remaining.TotalSeconds <= 0) return null;
-        if (remaining.TotalHours <= 24)
-            return $"Resets {resetLocal:h:mm tt}";
-        return $"Resets {resetLocal:MMM d h:mm tt}";
+        if (status.TotalUsage.HasValue)
+            return Math.Max(0, status.TotalUsage.Value);
+
+        if (status.Usage > 0)
+            return Math.Max(0, status.Usage);
+
+        if (status.TotalCredits.HasValue && status.LimitRemaining.HasValue)
+            return Math.Max(0, status.TotalCredits.Value - status.LimitRemaining.Value);
+
+        return null;
     }
 
-    #endregion
+    private static double? GetOpenRouterRemainingCredits(OpenRouterStatus status)
+    {
+        if (status.LimitRemaining.HasValue)
+            return Math.Max(0, status.LimitRemaining.Value);
+
+        if (status.TotalCredits.HasValue && status.TotalUsage.HasValue)
+            return Math.Max(0, status.TotalCredits.Value - status.TotalUsage.Value);
+
+        if (status.TotalCredits.HasValue && status.Usage >= 0)
+            return Math.Max(0, status.TotalCredits.Value - status.Usage);
+
+        return null;
+    }
+
+    private static string GetOpenRouterPeriodText(OpenRouterStatus status)
+    {
+        var now = DateTime.UtcNow;
+
+        if (string.Equals(status.LimitReset, "daily", StringComparison.OrdinalIgnoreCase))
+            return $"Current UTC day ({FormatUtcDateRange(now.Date, now.Date.AddDays(1).AddTicks(-1))}): ${status.UsageDaily:F2} used";
+
+        if (string.Equals(status.LimitReset, "weekly", StringComparison.OrdinalIgnoreCase))
+        {
+            var weekStart = StartOfUtcWeek(now);
+            return $"Current UTC week ({FormatUtcDateRange(weekStart, weekStart.AddDays(7).AddTicks(-1))}): ${status.UsageWeekly:F2} used";
+        }
+
+        if (string.Equals(status.LimitReset, "monthly", StringComparison.OrdinalIgnoreCase))
+        {
+            var monthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+            return $"Current UTC month ({FormatUtcDateRange(monthStart, monthStart.AddMonths(1).AddTicks(-1))}): ${status.UsageMonthly:F2} used";
+        }
+
+        var defaultMonthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        return $"Current UTC month ({FormatUtcDateRange(defaultMonthStart, defaultMonthStart.AddMonths(1).AddTicks(-1))}): ${status.UsageMonthly:F2} used";
+    }
+
+    private static DateTime StartOfUtcWeek(DateTime utcNow)
+    {
+        var date = utcNow.Date;
+        var daysSinceMonday = ((int)date.DayOfWeek + 6) % 7;
+        return date.AddDays(-daysSinceMonday);
+    }
+
+    private static string FormatUtcDateRange(DateTime startUtc, DateTime endUtc)
+    {
+        if (startUtc.Month == endUtc.Month && startUtc.Year == endUtc.Year)
+            return $"{startUtc:MMM d}-{endUtc:dd}";
+
+        if (startUtc.Year == endUtc.Year)
+            return $"{startUtc:MMM d}-{endUtc:MMM d}";
+
+        return $"{startUtc:MMM d, yyyy}-{endUtc:MMM d, yyyy}";
+    }
+
+    private static string FormatWindowLabel(int windowMinutes)
+    {
+        return windowMinutes switch
+        {
+            300 => "5h",
+            10080 => "7d",
+            _ when windowMinutes % 1440 == 0 => $"{windowMinutes / 1440}d",
+            _ when windowMinutes % 60 == 0 => $"{windowMinutes / 60}h",
+            _ => $"{windowMinutes}m"
+        };
+    }
+
+    private static string FormatResetTime(DateTimeOffset? resetAt)
+    {
+        return FormatCentralTime(resetAt);
+    }
+
+    private static string FormatCodexPlan(string? planType)
+    {
+        if (string.IsNullOrWhiteSpace(planType))
+            return "Plan unknown";
+
+        var normalized = planType.Replace('_', ' ');
+        return CultureInfo.InvariantCulture.TextInfo.ToTitleCase(normalized);
+    }
+
+    private static string FormatFetchedAt(DateTimeOffset? fetchedAt)
+    {
+        return FormatCentralTime(fetchedAt);
+    }
+
+    private static string EnsureUsedSuffix(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return "—";
+
+        return text.Contains("used", StringComparison.OrdinalIgnoreCase)
+            ? text
+            : $"{text} used";
+    }
+
+    private static string FormatCentralTime(DateTimeOffset? value)
+    {
+        if (!value.HasValue)
+            return "unknown";
+
+        try
+        {
+            var central = GetCentralTimeZone();
+            var converted = TimeZoneInfo.ConvertTime(value.Value, central);
+            var isDst = central.IsDaylightSavingTime(converted.DateTime);
+            var suffix = isDst ? "CDT" : "CST";
+            return $"{converted:MMM d h:mm tt} {suffix}";
+        }
+        catch
+        {
+            return $"{value.Value.ToLocalTime():MMM d h:mm tt}";
+        }
+    }
+
+    private static TimeZoneInfo GetCentralTimeZone()
+    {
+        try
+        {
+            return RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                ? TimeZoneInfo.FindSystemTimeZoneById("Central Standard Time")
+                : TimeZoneInfo.FindSystemTimeZoneById("America/Chicago");
+        }
+        catch
+        {
+            return TimeZoneInfo.Local;
+        }
+    }
+
+    private static string FormatTokenCount(long totalTokens)
+    {
+        if (totalTokens >= 1_000_000)
+            return $"{totalTokens / 1_000_000.0:F2}M";
+        if (totalTokens >= 1_000)
+            return $"{totalTokens / 1_000.0:F1}K";
+        return totalTokens.ToString("N0");
+    }
 
     #region Drag Support
 
@@ -514,16 +804,25 @@ public partial class UsagePopup : Window
         var point = e.GetCurrentPoint(this);
         if (point.Properties.IsLeftButtonPressed)
         {
-            var pos = point.Position;
-            if (pos.Y < 40 && pos.X < Width - 40)
+            if (e.Source is Control sourceControl)
             {
-                _isDragging = true;
-                var screenPos = this.PointToScreen(pos);
-                _dragStartScreenPoint = new PixelPoint((int)screenPos.X, (int)screenPos.Y);
-                _windowStartPosition = Position;
-                e.Pointer.Capture(this);
-                e.Handled = true;
+                if (sourceControl is Button)
+                    return;
+
+                if (sourceControl.GetVisualAncestors().OfType<Button>().Any())
+                    return;
             }
+
+            if (CloseButton.IsPointerOver || CompactButton.IsPointerOver || IconOnlyButton.IsPointerOver || RestoreIconButton.IsPointerOver)
+                return;
+
+            var pos = point.Position;
+            _isDragging = true;
+            var screenPos = this.PointToScreen(pos);
+            _dragStartScreenPoint = new PixelPoint((int)screenPos.X, (int)screenPos.Y);
+            _windowStartPosition = Position;
+            e.Pointer.Capture(this);
+            e.Handled = true;
         }
     }
 
@@ -616,3 +915,4 @@ public partial class UsagePopup : Window
         }
     }
 }
+

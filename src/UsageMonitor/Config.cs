@@ -29,7 +29,7 @@ public class Config
     public double AnthropicPrepaidBalance { get; set; } = 0;
 
     // Refresh interval in seconds
-    public int RefreshIntervalSeconds { get; set; } = 30;
+    public int RefreshIntervalSeconds { get; set; } = 300;
 
     public static Config Load()
     {
