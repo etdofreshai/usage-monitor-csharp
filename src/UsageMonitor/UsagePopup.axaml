@@ -60,7 +60,7 @@
                         <StackPanel Spacing="6">
                             <Grid ColumnDefinitions="*,Auto">
                                 <TextBlock Text="CPU" FontSize="12" Foreground="#888888" FontWeight="Medium" />
-                                <TextBlock x:Name="CpuPercentText" Text="0%" FontSize="12" Foreground="#64B5F6" Grid.Column="1" />
+                                <TextBlock x:Name="CpuPercentText" Text="0%" FontSize="12" Foreground="#64B5F6" Grid.Column="1" TextAlignment="Right" />
                             </Grid>
                             <ProgressBar x:Name="CpuBar"
                                          Minimum="0" Maximum="100" Value="0"
@@ -74,7 +74,7 @@
                         <StackPanel Spacing="6">
                             <Grid ColumnDefinitions="*,Auto">
                                 <TextBlock Text="Memory" FontSize="12" Foreground="#888888" FontWeight="Medium" />
-                                <TextBlock x:Name="MemoryText" Text="0 / 0 GB" FontSize="12" Foreground="#81C784" Grid.Column="1" />
+                                <TextBlock x:Name="MemoryText" Text="0 / 0 GB" FontSize="12" Foreground="#81C784" Grid.Column="1" TextAlignment="Right" />
                             </Grid>
                             <ProgressBar x:Name="MemoryBar"
                                          Minimum="0" Maximum="100" Value="0"
@@ -88,7 +88,7 @@
                         <StackPanel Spacing="6">
                             <Grid ColumnDefinitions="*,Auto">
                                 <TextBlock Text="Disk (C:)" FontSize="12" Foreground="#888888" FontWeight="Medium" />
-                                <TextBlock x:Name="DiskText" Text="0 / 0 GB" FontSize="12" Foreground="#FFB74D" Grid.Column="1" />
+                                <TextBlock x:Name="DiskText" Text="0 / 0 GB" FontSize="12" Foreground="#FFB74D" Grid.Column="1" TextAlignment="Right" />
                             </Grid>
                             <ProgressBar x:Name="DiskBar"
                                          Minimum="0" Maximum="100" Value="0"
@@ -118,7 +118,7 @@
                     <Border Background="#222222" CornerRadius="8" Padding="12">
                         <Grid ColumnDefinitions="*,Auto">
                             <TextBlock Text="System Uptime" FontSize="12" Foreground="#888888" FontWeight="Medium" />
-                            <TextBlock x:Name="UptimeText" Text="0d 0h 0m" FontSize="12" Foreground="#CE93D8" Grid.Column="1" />
+                            <TextBlock x:Name="UptimeText" Text="0d 0h 0m" FontSize="12" Foreground="#CE93D8" Grid.Column="1" TextAlignment="Right" />
                         </Grid>
                     </Border>
 
@@ -130,13 +130,14 @@
                         <StackPanel Spacing="6">
                             <Grid ColumnDefinitions="*,Auto">
                                 <TextBlock Text="OpenRouter" FontSize="12" Foreground="#888888" FontWeight="Medium" />
-                                <TextBlock x:Name="OpenRouterCreditsText" Text="—" FontSize="12" Foreground="#4FC3F7" Grid.Column="1" />
+                                <TextBlock x:Name="OpenRouterCreditsText" Text="—" FontSize="12" Foreground="#4FC3F7" Grid.Column="1" TextAlignment="Right" />
                             </Grid>
                             <ProgressBar x:Name="OpenRouterBar"
                                          Minimum="0" Maximum="100" Value="0"
                                          Height="6" CornerRadius="3"
                                          Foreground="#4FC3F7" Background="#333333" />
                             <TextBlock x:Name="OpenRouterDetailText" Text="" FontSize="10" Foreground="#555555" />
+                            <TextBlock x:Name="OpenRouterResetText" Text="" FontSize="10" Foreground="#666666" IsVisible="False" />
                         </StackPanel>
                     </Border>
 
@@ -145,7 +146,7 @@
                         <StackPanel Spacing="6">
                             <Grid ColumnDefinitions="*,Auto">
                                 <TextBlock Text="OpenAI" FontSize="12" Foreground="#888888" FontWeight="Medium" />
-                                <TextBlock x:Name="OpenAiCreditsText" Text="—" FontSize="12" Foreground="#66BB6A" Grid.Column="1" />
+                                <TextBlock x:Name="OpenAiCreditsText" Text="—" FontSize="12" Foreground="#66BB6A" Grid.Column="1" TextAlignment="Right" />
                             </Grid>
                             <ProgressBar x:Name="OpenAiBar"
                                          Minimum="0" Maximum="100" Value="0"
@@ -153,6 +154,7 @@
                                          Foreground="#66BB6A" Background="#333333"
                                          IsVisible="False" />
                             <TextBlock x:Name="OpenAiDetailText" Text="" FontSize="10" Foreground="#555555" />
+                            <TextBlock x:Name="OpenAiResetText" Text="" FontSize="10" Foreground="#666666" IsVisible="False" />
                         </StackPanel>
                     </Border>
 
@@ -161,7 +163,7 @@
                         <StackPanel Spacing="6">
                             <Grid ColumnDefinitions="*,Auto">
                                 <TextBlock Text="Anthropic" FontSize="12" Foreground="#888888" FontWeight="Medium" />
-                                <TextBlock x:Name="AnthropicCreditsText" Text="—" FontSize="12" Foreground="#FF8A65" Grid.Column="1" />
+                                <TextBlock x:Name="AnthropicCreditsText" Text="—" FontSize="12" Foreground="#FF8A65" Grid.Column="1" TextAlignment="Right" />
                             </Grid>
                             <ProgressBar x:Name="AnthropicBar"
                                          Minimum="0" Maximum="100" Value="0"
@@ -169,6 +171,7 @@
                                          Foreground="#FF8A65" Background="#333333"
                                          IsVisible="False" />
                             <TextBlock x:Name="AnthropicDetailText" Text="" FontSize="10" Foreground="#555555" />
+                            <TextBlock x:Name="AnthropicResetText" Text="" FontSize="10" Foreground="#666666" IsVisible="False" />
                         </StackPanel>
                     </Border>
 
@@ -177,9 +180,10 @@
                         <StackPanel Spacing="6">
                             <Grid ColumnDefinitions="*,Auto">
                                 <TextBlock Text="Z.ai" FontSize="12" Foreground="#888888" FontWeight="Medium" />
-                                <TextBlock x:Name="ZaiCreditsText" Text="—" FontSize="12" Foreground="#BA68C8" Grid.Column="1" />
+                                <TextBlock x:Name="ZaiCreditsText" Text="—" FontSize="12" Foreground="#BA68C8" Grid.Column="1" TextAlignment="Right" />
                             </Grid>
                             <TextBlock x:Name="ZaiDetailText" Text="" FontSize="10" Foreground="#555555" />
+                            <TextBlock x:Name="ZaiResetText" Text="" FontSize="10" Foreground="#666666" IsVisible="False" />
                         </StackPanel>
                     </Border>
 

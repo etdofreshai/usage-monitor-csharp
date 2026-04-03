@@ -167,9 +167,13 @@ public partial class UsagePopup : Window
         if (Screens.Primary is { } screen)
         {
             var workArea = screen.WorkingArea;
+            var scaling = screen.Scaling;
+            var pixelWidth = (int)(Width * scaling);
+            var pixelHeight = (int)(Height * scaling);
+            var margin = (int)(12 * scaling);
             Position = new PixelPoint(
-                workArea.X + workArea.Width - (int)Width - 12,
-                workArea.Y + workArea.Height - (int)Height - 12
+                workArea.X + workArea.Width - pixelWidth - margin,
+                workArea.Y + workArea.Height - pixelHeight - margin
             );
         }
     }
@@ -467,12 +471,38 @@ public partial class UsagePopup : Window
                 {
                     ZaiCreditsText.Text = "Connected";
                 }
+
+                // Show reset time from the first quota that has one
+                var resetQuota = status.Quotas.FirstOrDefault(q => !string.IsNullOrEmpty(q.ResetsAt));
+                var resetText = FormatResetTime(resetQuota?.ResetsAt);
+                if (resetText != null)
+                {
+                    ZaiResetText.Text = resetText;
+                    ZaiResetText.IsVisible = true;
+                }
+                else
+                {
+                    ZaiResetText.IsVisible = false;
+                }
             });
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Z.ai refresh error: {ex.Message}");
         }
+    }
+
+    private static string? FormatResetTime(string? resetsAtRaw)
+    {
+        if (string.IsNullOrEmpty(resetsAtRaw)) return null;
+        if (!DateTime.TryParse(resetsAtRaw, null, System.Globalization.DateTimeStyles.RoundtripKind, out var resetUtc))
+            return null;
+        var resetLocal = resetUtc.ToLocalTime();
+        var remaining = resetLocal - DateTime.Now;
+        if (remaining.TotalSeconds <= 0) return null;
+        if (remaining.TotalHours <= 24)
+            return $"Resets {resetLocal:h:mm tt}";
+        return $"Resets {resetLocal:MMM d h:mm tt}";
     }
 
     #endregion

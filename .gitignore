@@ -36,3 +36,6 @@ bld/
 !**/[Pp]ackages/build/
 *.nuget.props
 *.nuget.targets
+
+## Temp
+tmp/
