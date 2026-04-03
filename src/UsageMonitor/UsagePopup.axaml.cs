@@ -49,6 +49,7 @@ public partial class UsagePopup : Window
 
     // AI service clients
     private OpenRouterService? _openRouterService;
+    private OpenAiService? _openAiService;
     private CodexLocalService? _codexLocalService;
     private ClaudeCodeLocalService? _claudeCodeLocalService;
     private ZaiService? _zaiService;
@@ -134,6 +135,12 @@ public partial class UsagePopup : Window
             anyConfigured = true;
         }
 
+        if (!string.IsNullOrEmpty(_config.OpenAiAdminKey))
+        {
+            _openAiService = new OpenAiService(_config.OpenAiAdminKey, _config.OpenAiPrepaidBalance);
+            OpenAiRow.IsVisible = true;
+        }
+
         _codexLocalService = new CodexLocalService();
         if (_codexLocalService.IsAvailable())
         {
@@ -200,6 +207,7 @@ public partial class UsagePopup : Window
     public void ForceClose()
     {
         _openRouterService?.Dispose();
+        _openAiService?.Dispose();
         _claudeCodeLocalService?.Dispose();
         _zaiService?.Dispose();
 
@@ -378,6 +386,8 @@ public partial class UsagePopup : Window
 
         if (_openRouterService != null)
             tasks.Add(RefreshOpenRouterAsync());
+        if (_openAiService != null)
+            tasks.Add(RefreshOpenAiAsync());
         if (_codexLocalService != null)
             tasks.Add(RefreshCodexAsync());
         if (_claudeCodeLocalService != null)
@@ -444,6 +454,25 @@ public partial class UsagePopup : Window
         }
     }
 
+    private async Task RefreshOpenAiAsync()
+    {
+        try
+        {
+            var status = await _openAiService!.GetStatusAsync();
+            if (status == null) return;
+
+            Dispatcher.UIThread.Post(() =>
+            {
+                OpenAiCreditsText.Text = $"${status.SpendMonth:F2} this month";
+                UpdateCompactSummary();
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"OpenAI refresh error: {ex.Message}");
+        }
+    }
+
     private void SetViewMode(PopupViewMode mode, bool anchorBottomRight = true)
     {
         // Capture current bottom-right pixel position before resizing
@@ -506,29 +535,32 @@ public partial class UsagePopup : Window
         if (OpenRouterCompactSection == null)
             return;
 
+        // System one-liners
+        CpuCompactText.Text = CpuPercentText.Text;
+        MemoryCompactText.Text = MemoryText.Text;
+        DiskCompactText.Text = DiskText.Text;
+        UptimeCompactText.Text = UptimeText.Text;
+        NetCompactText.Text = $"{NetworkUpText.Text}  {NetworkDownText.Text}";
+
+        // AI one-liners
         OpenRouterCompactSection.IsVisible = OpenRouterSection.IsVisible;
+        OpenAiCompactRow.IsVisible = OpenAiRow.IsVisible;
         CodexCompactSection.IsVisible = CodexSection.IsVisible;
         ClaudeCompactSection.IsVisible = ClaudeCodeSection.IsVisible;
         ZaiCompactSection.IsVisible = ZaiSection.IsVisible;
 
         if (string.IsNullOrWhiteSpace(OpenRouterCompactText.Text))
-        {
             OpenRouterCompactText.Text = "—";
-        }
+
+        OpenAiCompactText.Text = OpenAiCreditsText.Text ?? "—";
 
         CodexCompactText.Text = $"{CodexPrimaryBar.Value:F0}%/{CodexSecondaryBar.Value:F0}% used";
-        CodexCompactPrimaryBar.Value = CodexPrimaryBar.Value;
-        CodexCompactSecondaryBar.Value = CodexSecondaryBar.Value;
 
         ClaudeCompactText.Text = $"{ClaudeCodePrimaryBar.Value:F0}%/{ClaudeCodeSecondaryBar.Value:F0}% used";
-        ClaudeCompactPrimaryBar.Value = ClaudeCodePrimaryBar.Value;
-        ClaudeCompactSecondaryBar.Value = ClaudeCodeSecondaryBar.Value;
 
         ZaiCompactText.Text = EnsureUsedSuffix((ZaiDetailText.Text ?? "—")
             .Replace(" monthly prompts", string.Empty, StringComparison.OrdinalIgnoreCase)
             .Replace(" / ", "/", StringComparison.OrdinalIgnoreCase));
-        ZaiCompactPrimaryBar.Value = ZaiTokenBar.IsVisible ? ZaiTokenBar.Value : 0;
-        ZaiCompactSecondaryBar.Value = ZaiMonthlyBar.IsVisible ? ZaiMonthlyBar.Value : 0;
     }
     private async Task RefreshCodexAsync()
     {

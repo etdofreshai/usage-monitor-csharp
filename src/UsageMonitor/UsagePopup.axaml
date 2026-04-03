@@ -82,6 +82,10 @@
                                     <TextBlock x:Name="OpenRouterCreditsText" Text="—" FontSize="10" Foreground="#4FC3F7" Grid.Column="1" TextAlignment="Right" />
                                 </Grid>
                                 <TextBlock x:Name="OpenRouterRangeText" Text="" FontSize="8" Foreground="#555555" TextWrapping="Wrap" />
+                                <Grid x:Name="OpenAiRow" ColumnDefinitions="*,Auto" IsVisible="False">
+                                    <TextBlock Text="OpenAI" FontSize="10" Foreground="#888888" FontWeight="Medium" />
+                                    <TextBlock x:Name="OpenAiCreditsText" Text="—" FontSize="10" Foreground="#10A37F" Grid.Column="1" TextAlignment="Right" />
+                                </Grid>
                             </StackPanel>
                         </Border>
 
@@ -174,15 +178,15 @@
                     IsVisible="False"
                     HorizontalAlignment="Right"
                     VerticalAlignment="Bottom"
-                    Width="240"
+                    Width="210"
                     Background="#E6181818"
                     CornerRadius="18"
                     BorderBrush="#404040"
                     BorderThickness="1"
-                    Padding="5,5,5,10">
-                <StackPanel Spacing="3">
+                    Padding="10,6,10,8">
+                <StackPanel Spacing="2">
                     <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Text="AI"
+                        <TextBlock Text="Monitor"
                                    FontSize="9"
                                    Foreground="#555555"
                                    FontWeight="Bold"
@@ -201,99 +205,52 @@
                         </Button>
                     </Grid>
 
-                    <StackPanel x:Name="OpenRouterCompactSection" Spacing="0">
-                        <Grid ColumnDefinitions="58,*">
-                            <TextBlock Text="OpenRouter"
-                                       FontSize="9"
-                                       Foreground="#4FC3F7"
-                                       FontWeight="SemiBold" />
-                            <TextBlock x:Name="OpenRouterCompactText"
-                                       Text="—"
-                                       FontSize="8"
-                                       Foreground="#BDEEFF"
-                                       Grid.Column="1"
-                                       HorizontalAlignment="Right"
-                                       TextAlignment="Right" />
-                        </Grid>
-                    </StackPanel>
+                    <!-- System one-liners -->
+                    <Grid ColumnDefinitions="50,*">
+                        <TextBlock Text="CPU" FontSize="9" Foreground="#64B5F6" FontWeight="SemiBold" />
+                        <TextBlock x:Name="CpuCompactText" Text="—" FontSize="8" Foreground="#AAD4FA" Grid.Column="1" HorizontalAlignment="Right" TextAlignment="Right" />
+                    </Grid>
+                    <Grid ColumnDefinitions="50,*">
+                        <TextBlock Text="Memory" FontSize="9" Foreground="#81C784" FontWeight="SemiBold" />
+                        <TextBlock x:Name="MemoryCompactText" Text="—" FontSize="8" Foreground="#B8E0BA" Grid.Column="1" HorizontalAlignment="Right" TextAlignment="Right" />
+                    </Grid>
+                    <Grid ColumnDefinitions="50,*">
+                        <TextBlock Text="Disk" FontSize="9" Foreground="#FFB74D" FontWeight="SemiBold" />
+                        <TextBlock x:Name="DiskCompactText" Text="—" FontSize="8" Foreground="#FFDAA6" Grid.Column="1" HorizontalAlignment="Right" TextAlignment="Right" />
+                    </Grid>
+                    <Grid ColumnDefinitions="50,*">
+                        <TextBlock Text="Uptime" FontSize="9" Foreground="#CE93D8" FontWeight="SemiBold" />
+                        <TextBlock x:Name="UptimeCompactText" Text="—" FontSize="8" Foreground="#E4C5EC" Grid.Column="1" HorizontalAlignment="Right" TextAlignment="Right" />
+                    </Grid>
+                    <Grid ColumnDefinitions="50,*">
+                        <TextBlock Text="Net" FontSize="9" Foreground="#EF5350" FontWeight="SemiBold" />
+                        <TextBlock x:Name="NetCompactText" Text="—" FontSize="8" Foreground="#F5A8A6" Grid.Column="1" HorizontalAlignment="Right" TextAlignment="Right" />
+                    </Grid>
 
-                    <StackPanel x:Name="CodexCompactSection" Spacing="0">
-                        <Grid ColumnDefinitions="58,*">
-                            <TextBlock Text="Codex"
-                                       FontSize="9"
-                                       Foreground="#8BC34A"
-                                       FontWeight="SemiBold" />
-                            <TextBlock x:Name="CodexCompactText"
-                                       Text="—"
-                                       FontSize="8"
-                                       Foreground="#D3F2A3"
-                                       Grid.Column="1"
-                                       HorizontalAlignment="Right"
-                                       TextAlignment="Right" />
-                        </Grid>
-                        <ProgressBar x:Name="CodexCompactPrimaryBar"
-                                     Minimum="0" Maximum="100" Value="0"
-                                     Height="3"
-                                     Foreground="#8BC34A"
-                                     Background="#333333" />
-                        <ProgressBar x:Name="CodexCompactSecondaryBar"
-                                     Minimum="0" Maximum="100" Value="0"
-                                     Height="3"
-                                     Foreground="#B39DDB"
-                                     Background="#333333" />
-                    </StackPanel>
+                    <!-- Separator -->
+                    <Border Height="1" Background="#333333" Margin="0,2" />
 
-                    <StackPanel x:Name="ClaudeCompactSection" Spacing="0">
-                        <Grid ColumnDefinitions="58,*">
-                            <TextBlock Text="Claude"
-                                       FontSize="9"
-                                       Foreground="#FF8A65"
-                                       FontWeight="SemiBold" />
-                            <TextBlock x:Name="ClaudeCompactText"
-                                       Text="—"
-                                       FontSize="8"
-                                       Foreground="#FFD3C0"
-                                       Grid.Column="1"
-                                       HorizontalAlignment="Right"
-                                       TextAlignment="Right" />
-                        </Grid>
-                        <ProgressBar x:Name="ClaudeCompactPrimaryBar"
-                                     Minimum="0" Maximum="100" Value="0"
-                                     Height="3"
-                                     Foreground="#FF8A65"
-                                     Background="#333333" />
-                        <ProgressBar x:Name="ClaudeCompactSecondaryBar"
-                                     Minimum="0" Maximum="100" Value="0"
-                                     Height="3"
-                                     Foreground="#FFB74D"
-                                     Background="#333333" />
-                    </StackPanel>
-
-                    <StackPanel x:Name="ZaiCompactSection" Spacing="0">
-                        <Grid ColumnDefinitions="58,*">
-                            <TextBlock Text="Z.ai"
-                                       FontSize="9"
-                                       Foreground="#BA68C8"
-                                       FontWeight="SemiBold" />
-                            <TextBlock x:Name="ZaiCompactText"
-                                       Text="—"
-                                       FontSize="8"
-                                       Foreground="#E1C5EA"
-                                       Grid.Column="1"
-                                       HorizontalAlignment="Right"
-                                       TextAlignment="Right" />
-                        </Grid>
-                        <ProgressBar x:Name="ZaiCompactPrimaryBar"
-                                     Minimum="0" Maximum="100" Value="0"
-                                     Height="3"
-                                     Foreground="#BA68C8"
-                                     Background="#333333" />
-                        <ProgressBar x:Name="ZaiCompactSecondaryBar"
-                                     Minimum="0" Maximum="100" Value="0"
-                                     Height="3"
-                                     Foreground="#7E57C2"
-                                     Background="#333333" />
-                    </StackPanel>
+                    <!-- AI one-liners -->
+                    <Grid x:Name="OpenRouterCompactSection" ColumnDefinitions="62,*">
+                        <TextBlock Text="OpenRouter" FontSize="9" Foreground="#4FC3F7" FontWeight="SemiBold" />
+                        <TextBlock x:Name="OpenRouterCompactText" Text="—" FontSize="8" Foreground="#BDEEFF" Grid.Column="1" HorizontalAlignment="Right" TextAlignment="Right" />
+                    </Grid>
+                    <Grid x:Name="OpenAiCompactRow" ColumnDefinitions="62,*" IsVisible="False">
+                        <TextBlock Text="OpenAI" FontSize="9" Foreground="#10A37F" FontWeight="SemiBold" />
+                        <TextBlock x:Name="OpenAiCompactText" Text="—" FontSize="8" Foreground="#7DD4B8" Grid.Column="1" HorizontalAlignment="Right" TextAlignment="Right" />
+                    </Grid>
+                    <Grid x:Name="CodexCompactSection" ColumnDefinitions="62,*">
+                        <TextBlock Text="Codex" FontSize="9" Foreground="#8BC34A" FontWeight="SemiBold" />
+                        <TextBlock x:Name="CodexCompactText" Text="—" FontSize="8" Foreground="#D3F2A3" Grid.Column="1" HorizontalAlignment="Right" TextAlignment="Right" />
+                    </Grid>
+                    <Grid x:Name="ClaudeCompactSection" ColumnDefinitions="62,*">
+                        <TextBlock Text="Claude" FontSize="9" Foreground="#FF8A65" FontWeight="SemiBold" />
+                        <TextBlock x:Name="ClaudeCompactText" Text="—" FontSize="8" Foreground="#FFD3C0" Grid.Column="1" HorizontalAlignment="Right" TextAlignment="Right" />
+                    </Grid>
+                    <Grid x:Name="ZaiCompactSection" ColumnDefinitions="62,*">
+                        <TextBlock Text="Z.ai" FontSize="9" Foreground="#BA68C8" FontWeight="SemiBold" />
+                        <TextBlock x:Name="ZaiCompactText" Text="—" FontSize="8" Foreground="#E1C5EA" Grid.Column="1" HorizontalAlignment="Right" TextAlignment="Right" />
+                    </Grid>
                 </StackPanel>
             </Border>
 
