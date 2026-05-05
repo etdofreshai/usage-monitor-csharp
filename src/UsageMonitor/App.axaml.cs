@@ -21,25 +21,26 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            // Create a hidden window to keep the app running
-            _hiddenWindow = new Window
-            {
-                Width = 1,
-                Height = 1,
-                ShowInTaskbar = false,
-                SystemDecorations = SystemDecorations.None,
-                Opacity = 0,
-                Focusable = false,
-                CanResize = false,
-            };
-            _hiddenWindow.Opened += (s, e) =>
-            {
-                _hiddenWindow.Position = new PixelPoint(-10000, -10000);
-            };
-            desktop.MainWindow = _hiddenWindow;
-
-            // Don't shutdown when the hidden window closes
             desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
+            if (!OperatingSystem.IsMacOS())
+            {
+                _hiddenWindow = new Window
+                {
+                    Width = 1,
+                    Height = 1,
+                    ShowInTaskbar = false,
+                    SystemDecorations = SystemDecorations.None,
+                    Opacity = 0,
+                    Focusable = false,
+                    CanResize = false,
+                };
+                _hiddenWindow.Opened += (s, e) =>
+                {
+                    _hiddenWindow.Position = new PixelPoint(-10000, -10000);
+                };
+                desktop.MainWindow = _hiddenWindow;
+            }
 
             // Create the usage popup (starts hidden)
             _popup = new UsagePopup();
