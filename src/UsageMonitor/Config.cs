@@ -18,18 +18,13 @@ public class Config
     private static string ConfigDirectory => GetConfigDirectory();
     private static string ConfigFilePath => Path.Combine(ConfigDirectory, "config.json");
 
-    // API Keys
-    public string OpenAiAdminKey { get; set; } = "";
-    public string OpenRouterApiKey { get; set; } = "";
-    public string AnthropicAdminKey { get; set; } = "";
-    public string ZaiApiKey { get; set; } = "";
+    // Where to fetch usage from. The server aggregates Claude/Codex/Z.ai/OpenRouter/OpenAI
+    // and exposes a single /api/usage endpoint — see https://github.com/etdofreshai/usage-api.
+    public string UsageApiUrl { get; set; } = "https://usage.etdofresh.com";
 
-    // Known balances (for services without a "remaining" endpoint)
-    public double OpenAiPrepaidBalance { get; set; } = 0;
-    public double AnthropicPrepaidBalance { get; set; } = 0;
-
-    // Refresh interval in seconds
-    public int RefreshIntervalSeconds { get; set; } = 300;
+    // Refresh interval in seconds. Default 5 — usage-api caches snapshots so polling
+    // fast is cheap on its end.
+    public int RefreshIntervalSeconds { get; set; } = 5;
 
     public static Config Load()
     {
@@ -59,21 +54,9 @@ public class Config
 
     private static void OverrideFromEnv(Config config)
     {
-        var openAiKey = Environment.GetEnvironmentVariable("OPENAI_ADMIN_KEY");
-        if (!string.IsNullOrEmpty(openAiKey))
-            config.OpenAiAdminKey = openAiKey;
-
-        var openRouterKey = Environment.GetEnvironmentVariable("OPENROUTER_API_KEY");
-        if (!string.IsNullOrEmpty(openRouterKey))
-            config.OpenRouterApiKey = openRouterKey;
-
-        var anthropicKey = Environment.GetEnvironmentVariable("ANTHROPIC_ADMIN_KEY");
-        if (!string.IsNullOrEmpty(anthropicKey))
-            config.AnthropicAdminKey = anthropicKey;
-
-        var zaiKey = Environment.GetEnvironmentVariable("ZAI_API_KEY");
-        if (!string.IsNullOrEmpty(zaiKey))
-            config.ZaiApiKey = zaiKey;
+        var url = Environment.GetEnvironmentVariable("USAGE_API_URL");
+        if (!string.IsNullOrEmpty(url))
+            config.UsageApiUrl = url;
     }
 
     public void Save()
