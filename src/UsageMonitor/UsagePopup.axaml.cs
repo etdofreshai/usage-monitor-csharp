@@ -47,12 +47,14 @@ public partial class UsagePopup : Window
     // CPU tracking (Windows)
     private PerformanceCounter? _cpuCounter;
 
-    // AI service clients
-    private OpenRouterService? _openRouterService;
-    private OpenAiService? _openAiService;
-    private CodexLocalService? _codexLocalService;
-    private ClaudeCodeLocalService? _claudeCodeLocalService;
-    private ZaiService? _zaiService;
+    // Latest reset timestamps (driven by RefreshXxxAsync, read by UpdateCompactSummary)
+    private DateTimeOffset? _codex5hReset, _codex7dReset;
+    private DateTimeOffset? _claude5hReset, _claude7dReset;
+    private DateTimeOffset? _zai5hReset, _zaiMoReset;
+    private double? _zai5hPercent, _zaiMoPercent;
+
+    // Single source of truth: the usage-api aggregator.
+    private UsageApiService? _usageApiService;
 
     public UsagePopup()
     {
@@ -80,8 +82,8 @@ public partial class UsagePopup : Window
         _systemRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         _systemRefreshTimer.Tick += SystemRefreshTimer_Tick;
 
-        // AI credits refresh (every 30 seconds, configurable)
-        var aiRefreshIntervalSeconds = Math.Max(_config.RefreshIntervalSeconds, 300);
+        // AI credits refresh — fast, since usage-api is just a local aggregator with cached snapshots.
+        var aiRefreshIntervalSeconds = Math.Max(1, _config.RefreshIntervalSeconds);
         _aiRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(aiRefreshIntervalSeconds) };
         _aiRefreshTimer.Tick += AiRefreshTimer_Tick;
 
@@ -126,50 +128,11 @@ public partial class UsagePopup : Window
 
     private void InitializeAiServices()
     {
-        bool anyConfigured = false;
-
-        if (!string.IsNullOrEmpty(_config.OpenRouterApiKey))
-        {
-            _openRouterService = new OpenRouterService(_config.OpenRouterApiKey);
-            OpenRouterSection.IsVisible = true;
-            anyConfigured = true;
-        }
-
-        if (!string.IsNullOrEmpty(_config.OpenAiAdminKey))
-        {
-            _openAiService = new OpenAiService(_config.OpenAiAdminKey, _config.OpenAiPrepaidBalance);
-            OpenAiRow.IsVisible = true;
-        }
-
-        _codexLocalService = new CodexLocalService();
-        if (_codexLocalService.IsAvailable())
-        {
-            CodexSection.IsVisible = true;
-            anyConfigured = true;
-        }
-
-        _claudeCodeLocalService = new ClaudeCodeLocalService();
-        if (_claudeCodeLocalService.IsAvailable())
-        {
-            ClaudeCodeSection.IsVisible = true;
-            anyConfigured = true;
-        }
-
-        if (!string.IsNullOrEmpty(_config.ZaiApiKey))
-        {
-            _zaiService = new ZaiService(_config.ZaiApiKey);
-            ZaiSection.IsVisible = true;
-            anyConfigured = true;
-        }
-
-        if (anyConfigured)
-        {
-            NoKeysHint.IsVisible = false;
-        }
-        else
-        {
-            ConfigPathText.Text = $"Config: {Config.GetConfigPath()}";
-        }
+        _usageApiService = new UsageApiService(_config.UsageApiUrl);
+        // Sections start hidden; the first successful refresh reveals whichever providers
+        // returned data. NoKeysHint also flips off after the first successful response.
+        NoKeysHint.IsVisible = false;
+        ConfigPathText.Text = $"Source: {_config.UsageApiUrl}";
     }
 
     public void TogglePopup()
@@ -206,11 +169,7 @@ public partial class UsagePopup : Window
 
     public void ForceClose()
     {
-        _openRouterService?.Dispose();
-        _openAiService?.Dispose();
-        _claudeCodeLocalService?.Dispose();
-        _zaiService?.Dispose();
-
+        _usageApiService?.Dispose();
         _allowClose = true;
         Close();
     }
@@ -382,95 +341,106 @@ public partial class UsagePopup : Window
 
     private async Task RefreshAiCreditsAsync()
     {
-        var tasks = new List<Task>();
+        if (_usageApiService == null) return;
+        var status = await _usageApiService.GetStatusAsync();
+        if (status == null) return;
 
-        if (_openRouterService != null)
-            tasks.Add(RefreshOpenRouterAsync());
-        if (_openAiService != null)
-            tasks.Add(RefreshOpenAiAsync());
-        if (_codexLocalService != null)
-            tasks.Add(RefreshCodexAsync());
-        if (_claudeCodeLocalService != null)
-            tasks.Add(RefreshClaudeCodeAsync());
-        if (_zaiService != null)
-            tasks.Add(RefreshZaiAsync());
-
-        await Task.WhenAll(tasks);
-        UpdateCompactSummary();
+        Dispatcher.UIThread.Post(() =>
+        {
+            ApplyOpenRouter(status.OpenRouter);
+            ApplyOpenAi(status.OpenAi);
+            ApplyCodex(status.Codex);
+            ApplyClaude(status.Claude);
+            ApplyZai(status.Zai);
+            UpdateCompactSummary();
+        });
     }
 
-    private async Task RefreshOpenRouterAsync()
+    private void ApplyOpenRouter(OpenRouterBlock? r)
     {
-        try
-        {
-            var status = await _openRouterService!.GetStatusAsync();
-            if (status == null) return;
-
-            Dispatcher.UIThread.Post(() =>
-            {
-                var usedCredits = GetOpenRouterUsedCredits(status);
-                var remainingCredits = GetOpenRouterRemainingCredits(status);
-                var totalCredits = status.TotalCredits ?? status.Limit;
-
-                if (usedCredits.HasValue)
-                {
-                    var remaining = remainingCredits ?? (totalCredits.HasValue
-                        ? Math.Max(0, totalCredits.Value - usedCredits.Value)
-                        : (double?)null);
-                    OpenRouterCreditsText.Text = remaining.HasValue
-                        ? $"${usedCredits.Value:F2} used | ${remaining.Value:F2} left"
-                        : $"${usedCredits.Value:F2} used";
-                }
-                else
-                {
-                    var remaining = remainingCredits ?? (totalCredits.HasValue
-                        ? Math.Max(0, totalCredits.Value - status.Usage)
-                        : (double?)null);
-                    OpenRouterCreditsText.Text = remaining.HasValue
-                        ? $"${status.Usage:F2} used | ${remaining.Value:F2} left"
-                        : $"${status.Usage:F2} used";
-                }
-
-                if (remainingCredits.HasValue)
-                {
-                    OpenRouterCompactText.Text = $"${remainingCredits.Value:F2} left";
-                }
-                else if (totalCredits.HasValue && usedCredits.HasValue)
-                {
-                    OpenRouterCompactText.Text = $"${Math.Max(0, totalCredits.Value - usedCredits.Value):F2} left";
-                }
-                else
-                {
-                    OpenRouterCompactText.Text = "—";
-                }
-
-                OpenRouterRangeText.Text = GetOpenRouterPeriodText(status);
-                UpdateCompactSummary();
-            });
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"OpenRouter refresh error: {ex.Message}");
-        }
+        OpenRouterSection.IsVisible = r != null;
+        if (r == null) return;
+        var remaining = r.LimitRemaining ?? (r.Limit.HasValue ? Math.Max(0, r.Limit.Value - r.Usage) : (double?)null);
+        OpenRouterCreditsText.Text = remaining.HasValue
+            ? $"${r.Usage:F2} used | ${remaining.Value:F2} left"
+            : $"${r.Usage:F2} used";
+        OpenRouterCompactText.Text = remaining.HasValue ? $"${remaining.Value:F2} left" : "—";
+        OpenRouterRangeText.Text = r.IsFreeTier == true ? "Free tier" : "";
     }
 
-    private async Task RefreshOpenAiAsync()
+    private void ApplyOpenAi(OpenAiBlock? o)
     {
-        try
-        {
-            var status = await _openAiService!.GetStatusAsync();
-            if (status == null) return;
+        OpenAiRow.IsVisible = o != null;
+        if (o == null) return;
+        OpenAiCreditsText.Text = $"${o.SpendMonth:F2} this month";
+    }
 
-            Dispatcher.UIThread.Post(() =>
-            {
-                OpenAiCreditsText.Text = $"${status.SpendMonth:F2} this month";
-                UpdateCompactSummary();
-            });
-        }
-        catch (Exception ex)
+    private void ApplyCodex(CodexBlock? c)
+    {
+        CodexSection.IsVisible = c != null;
+        if (c == null) return;
+        var primary = Math.Clamp(c.Primary.UsedPercent, 0, 100);
+        var secondary = Math.Clamp(c.Secondary.UsedPercent, 0, 100);
+        CodexCreditsText.Text = $"{primary:F0}% / {secondary:F0}% used";
+        CodexPrimaryBar.Value = primary;
+        CodexSecondaryBar.Value = secondary;
+        _codex5hReset = c.Primary.ResetsAt;
+        _codex7dReset = c.Secondary.ResetsAt;
+        CodexRangeText.Text = $"5h: in {FormatResetCountdown(c.Primary.ResetsAt)} • 7d: {FormatResetDate(c.Secondary.ResetsAt)}";
+    }
+
+    private void ApplyClaude(ClaudeBlock? c)
+    {
+        ClaudeCodeSection.IsVisible = c != null;
+        if (c == null) return;
+        ClaudeCodeCreditsText.Text = $"{c.FiveHour.UsedPercent:F0}% / {c.SevenDay.UsedPercent:F0}% used";
+        ClaudeCodePrimaryBar.Value = c.FiveHour.UsedPercent;
+        ClaudeCodeSecondaryBar.Value = c.SevenDay.UsedPercent;
+        _claude5hReset = c.FiveHour.ResetsAt;
+        _claude7dReset = c.SevenDay.ResetsAt;
+        ClaudeCodeRangeText.Text = $"5h: in {FormatResetCountdown(c.FiveHour.ResetsAt)} • 7d: {FormatResetDate(c.SevenDay.ResetsAt)}";
+    }
+
+    private void ApplyZai(ZaiBlock? z)
+    {
+        ZaiSection.IsVisible = z != null;
+        if (z == null) return;
+
+        _zai5hPercent = z.FiveHour?.UsedPercent;
+        _zai5hReset = z.FiveHour?.ResetsAt;
+        _zaiMoPercent = z.Monthly?.UsedPercent;
+        _zaiMoReset = z.Monthly?.ResetsAt;
+
+        if (z.FiveHour != null)
         {
-            Console.WriteLine($"OpenAI refresh error: {ex.Message}");
+            ZaiTokenBar.Value = z.FiveHour.UsedPercent;
+            ZaiTokenBar.IsVisible = true;
         }
+        else
+        {
+            ZaiTokenBar.IsVisible = false;
+        }
+
+        if (z.Monthly != null)
+        {
+            ZaiMonthlyBar.Value = z.Monthly.UsedPercent;
+            ZaiMonthlyBar.IsVisible = true;
+        }
+        else
+        {
+            ZaiMonthlyBar.IsVisible = false;
+        }
+        ZaiDetailText.IsVisible = false;
+
+        var headerParts = new List<string>();
+        if (_zai5hPercent.HasValue) headerParts.Add($"5h {_zai5hPercent.Value:F0}%");
+        if (_zaiMoPercent.HasValue) headerParts.Add($"Mo {_zaiMoPercent.Value:F0}%");
+        ZaiCreditsText.Text = headerParts.Count > 0 ? string.Join(" • ", headerParts) + " used" : "Connected";
+
+        var resetParts = new List<string>();
+        if (_zai5hReset.HasValue) resetParts.Add($"5h: in {FormatResetCountdown(_zai5hReset)}");
+        if (_zaiMoReset.HasValue) resetParts.Add($"Mo: {FormatResetDate(_zaiMoReset)}");
+        ZaiTokenText.Text = string.Join(" • ", resetParts);
     }
 
     private void SetViewMode(PopupViewMode mode, bool anchorBottomRight = true)
@@ -554,214 +524,54 @@ public partial class UsagePopup : Window
 
         OpenAiCompactText.Text = OpenAiCreditsText.Text ?? "—";
 
-        CodexCompactText.Text = $"{CodexPrimaryBar.Value:F0}%/{CodexSecondaryBar.Value:F0}% used";
+        const double barWidth = 62.0;
+        CodexCompact5hBar.Width = Math.Clamp(CodexPrimaryBar.Value / 100.0, 0, 1) * barWidth;
+        CodexCompact7dBar.Width = Math.Clamp(CodexSecondaryBar.Value / 100.0, 0, 1) * barWidth;
+        CodexCompact5hPct.Text = $"{CodexPrimaryBar.Value:F0}%";
+        CodexCompact7dPct.Text = $"{CodexSecondaryBar.Value:F0}%";
+        CodexCompact5hReset.Text = _codex5hReset.HasValue ? $"in {FormatResetCountdown(_codex5hReset)}" : "";
+        CodexCompact7dReset.Text = _codex7dReset.HasValue ? FormatResetDate(_codex7dReset) : "";
 
-        ClaudeCompactText.Text = $"{ClaudeCodePrimaryBar.Value:F0}%/{ClaudeCodeSecondaryBar.Value:F0}% used";
+        ClaudeCompact5hBar.Width = Math.Clamp(ClaudeCodePrimaryBar.Value / 100.0, 0, 1) * barWidth;
+        ClaudeCompact7dBar.Width = Math.Clamp(ClaudeCodeSecondaryBar.Value / 100.0, 0, 1) * barWidth;
+        ClaudeCompact5hPct.Text = $"{ClaudeCodePrimaryBar.Value:F0}%";
+        ClaudeCompact7dPct.Text = $"{ClaudeCodeSecondaryBar.Value:F0}%";
+        ClaudeCompact5hReset.Text = _claude5hReset.HasValue ? $"in {FormatResetCountdown(_claude5hReset)}" : "";
+        ClaudeCompact7dReset.Text = _claude7dReset.HasValue ? FormatResetDate(_claude7dReset) : "";
 
-        ZaiCompactText.Text = EnsureUsedSuffix((ZaiDetailText.Text ?? "—")
-            .Replace(" monthly prompts", string.Empty, StringComparison.OrdinalIgnoreCase)
-            .Replace(" / ", "/", StringComparison.OrdinalIgnoreCase));
+        ZaiCompact5hBar.Width = Math.Clamp((_zai5hPercent ?? 0) / 100.0, 0, 1) * barWidth;
+        ZaiCompactMoBar.Width = Math.Clamp((_zaiMoPercent ?? 0) / 100.0, 0, 1) * barWidth;
+        ZaiCompact5hPct.Text = _zai5hPercent.HasValue ? $"{_zai5hPercent.Value:F0}%" : "—";
+        ZaiCompactMoPct.Text = _zaiMoPercent.HasValue ? $"{_zaiMoPercent.Value:F0}%" : "—";
+        ZaiCompact5hReset.Text = _zai5hReset.HasValue ? $"in {FormatResetCountdown(_zai5hReset)}" : "";
+        ZaiCompactMoReset.Text = _zaiMoReset.HasValue ? FormatResetDate(_zaiMoReset) : "";
     }
-    private async Task RefreshCodexAsync()
+
+    private static string FormatResetCountdown(DateTimeOffset? resetAt)
     {
+        if (!resetAt.HasValue) return "—";
+        var remaining = resetAt.Value - DateTimeOffset.Now;
+        if (remaining <= TimeSpan.Zero) return "now";
+        if (remaining.TotalHours >= 1)
+            return $"{(int)remaining.TotalHours}h {remaining.Minutes}m";
+        return $"{remaining.Minutes}m";
+    }
+
+    private static string FormatResetDate(DateTimeOffset? resetAt)
+    {
+        if (!resetAt.HasValue) return "—";
         try
         {
-            var status = await _codexLocalService!.GetStatusAsync();
-            if (status == null) return;
-
-            Dispatcher.UIThread.Post(() =>
-            {
-                var primaryUsed = Math.Clamp(status.Primary.UsedPercent, 0, 100);
-                var secondaryUsed = Math.Clamp(status.Secondary.UsedPercent, 0, 100);
-
-                CodexCreditsText.Text = $"{primaryUsed:F0}% / {secondaryUsed:F0}% used";
-                CodexPrimaryBar.Value = primaryUsed;
-                CodexSecondaryBar.Value = secondaryUsed;
-
-                CodexRangeText.Text = $"Resets 5h {FormatResetTime(status.Primary.ResetsAt)} | 7d {FormatResetTime(status.Secondary.ResetsAt)}";
-                UpdateCompactSummary();
-            });
+            var central = GetCentralTimeZone();
+            var converted = TimeZoneInfo.ConvertTime(resetAt.Value, central);
+            return $"{converted:ddd MMM d}";
         }
-        catch (Exception ex)
+        catch
         {
-            Console.WriteLine($"Codex refresh error: {ex.Message}");
+            return $"{resetAt.Value.ToLocalTime():ddd MMM d}";
         }
     }
-
-    private async Task RefreshClaudeCodeAsync()
-    {
-        try
-        {
-            var status = await _claudeCodeLocalService!.GetStatusAsync();
-            if (status == null) return;
-
-            Dispatcher.UIThread.Post(() =>
-            {
-                ClaudeCodeCreditsText.Text = $"{status.FiveHour.UtilizationPercent:F0}% / {status.SevenDay.UtilizationPercent:F0}% used";
-                ClaudeCodePrimaryBar.Value = status.FiveHour.UtilizationPercent;
-                ClaudeCodeSecondaryBar.Value = status.SevenDay.UtilizationPercent;
-
-                ClaudeCodeRangeText.Text = $"Resets 5h {FormatResetTime(status.FiveHour.ResetsAt)} | 7d {FormatResetTime(status.SevenDay.ResetsAt)}";
-                UpdateCompactSummary();
-            });
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Claude Code refresh error: {ex.Message}");
-        }
-    }
-
-    private async Task RefreshZaiAsync()
-    {
-        try
-        {
-            var status = await _zaiService!.GetStatusAsync();
-            if (status == null) return;
-
-            Dispatcher.UIThread.Post(() =>
-            {
-                if (status.Quotas.Count > 0)
-                {
-                    var tokenQuota = status.Quotas.FirstOrDefault(q => q.Type.Equals("TOKENS_LIMIT", StringComparison.OrdinalIgnoreCase));
-                    var monthlyQuota = status.Quotas.FirstOrDefault(q => q.Type.Equals("TIME_LIMIT", StringComparison.OrdinalIgnoreCase));
-
-                    if (tokenQuota != null)
-                    {
-                        var tokenPercent = tokenQuota.Percentage ?? 0;
-                        ZaiCreditsText.Text = $"{tokenPercent:F0}% used";
-                        ZaiTokenBar.Value = tokenPercent;
-                        ZaiTokenBar.IsVisible = true;
-                        ZaiTokenText.Text = tokenQuota.ResetsAt.HasValue
-                            ? $"Resets {FormatResetTime(tokenQuota.ResetsAt)}"
-                            : "Resets unknown";
-                    }
-                    else
-                    {
-                        ZaiCreditsText.Text = "Connected";
-                        ZaiTokenBar.IsVisible = false;
-                        ZaiTokenText.Text = string.Empty;
-                    }
-
-                    if (monthlyQuota != null && monthlyQuota.Limit.HasValue)
-                    {
-                        var used = monthlyQuota.CurrentValue ?? monthlyQuota.Used ?? 0;
-                        var usedPercent = monthlyQuota.Percentage ?? (used / (double)monthlyQuota.Limit.Value * 100.0);
-
-                        ZaiMonthlyBar.Value = usedPercent;
-                        ZaiMonthlyBar.IsVisible = true;
-                        ZaiDetailText.Text = $"{used:N0} / {monthlyQuota.Limit.Value:N0} monthly prompts";
-                        ZaiTokenText.Text = monthlyQuota.ResetsAt.HasValue
-                            ? $"Resets {FormatResetTime(monthlyQuota.ResetsAt)}"
-                            : "Resets unknown";
-                    }
-                    else
-                    {
-                        ZaiMonthlyBar.IsVisible = false;
-                        ZaiDetailText.Text = "Monthly prompts not exposed here";
-                        ZaiTokenText.Text = string.Empty;
-                    }
-                }
-                else
-                {
-                    ZaiCreditsText.Text = "Connected";
-                }
-
-                UpdateCompactSummary();
-            });
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Z.ai refresh error: {ex.Message}");
-        }
-    }
-
     #endregion
-
-    private static double? GetOpenRouterUsedCredits(OpenRouterStatus status)
-    {
-        if (status.TotalUsage.HasValue)
-            return Math.Max(0, status.TotalUsage.Value);
-
-        if (status.Usage > 0)
-            return Math.Max(0, status.Usage);
-
-        if (status.TotalCredits.HasValue && status.LimitRemaining.HasValue)
-            return Math.Max(0, status.TotalCredits.Value - status.LimitRemaining.Value);
-
-        return null;
-    }
-
-    private static double? GetOpenRouterRemainingCredits(OpenRouterStatus status)
-    {
-        if (status.LimitRemaining.HasValue)
-            return Math.Max(0, status.LimitRemaining.Value);
-
-        if (status.TotalCredits.HasValue && status.TotalUsage.HasValue)
-            return Math.Max(0, status.TotalCredits.Value - status.TotalUsage.Value);
-
-        if (status.TotalCredits.HasValue && status.Usage >= 0)
-            return Math.Max(0, status.TotalCredits.Value - status.Usage);
-
-        return null;
-    }
-
-    private static string GetOpenRouterPeriodText(OpenRouterStatus status)
-    {
-        var now = DateTime.UtcNow;
-
-        if (string.Equals(status.LimitReset, "daily", StringComparison.OrdinalIgnoreCase))
-            return $"Current UTC day ({FormatUtcDateRange(now.Date, now.Date.AddDays(1).AddTicks(-1))}): ${status.UsageDaily:F2} used";
-
-        if (string.Equals(status.LimitReset, "weekly", StringComparison.OrdinalIgnoreCase))
-        {
-            var weekStart = StartOfUtcWeek(now);
-            return $"Current UTC week ({FormatUtcDateRange(weekStart, weekStart.AddDays(7).AddTicks(-1))}): ${status.UsageWeekly:F2} used";
-        }
-
-        if (string.Equals(status.LimitReset, "monthly", StringComparison.OrdinalIgnoreCase))
-        {
-            var monthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
-            return $"Current UTC month ({FormatUtcDateRange(monthStart, monthStart.AddMonths(1).AddTicks(-1))}): ${status.UsageMonthly:F2} used";
-        }
-
-        var defaultMonthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
-        return $"Current UTC month ({FormatUtcDateRange(defaultMonthStart, defaultMonthStart.AddMonths(1).AddTicks(-1))}): ${status.UsageMonthly:F2} used";
-    }
-
-    private static DateTime StartOfUtcWeek(DateTime utcNow)
-    {
-        var date = utcNow.Date;
-        var daysSinceMonday = ((int)date.DayOfWeek + 6) % 7;
-        return date.AddDays(-daysSinceMonday);
-    }
-
-    private static string FormatUtcDateRange(DateTime startUtc, DateTime endUtc)
-    {
-        if (startUtc.Month == endUtc.Month && startUtc.Year == endUtc.Year)
-            return $"{startUtc:MMM d}-{endUtc:dd}";
-
-        if (startUtc.Year == endUtc.Year)
-            return $"{startUtc:MMM d}-{endUtc:MMM d}";
-
-        return $"{startUtc:MMM d, yyyy}-{endUtc:MMM d, yyyy}";
-    }
-
-    private static string FormatWindowLabel(int windowMinutes)
-    {
-        return windowMinutes switch
-        {
-            300 => "5h",
-            10080 => "7d",
-            _ when windowMinutes % 1440 == 0 => $"{windowMinutes / 1440}d",
-            _ when windowMinutes % 60 == 0 => $"{windowMinutes / 60}h",
-            _ => $"{windowMinutes}m"
-        };
-    }
-
-    private static string FormatResetTime(DateTimeOffset? resetAt)
-    {
-        return FormatCentralTime(resetAt);
-    }
 
     private static string FormatCodexPlan(string? planType)
     {
