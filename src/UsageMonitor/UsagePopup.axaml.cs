@@ -1,10 +1,12 @@
 using System.Diagnostics;
+using System.Linq;
 using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -52,6 +54,25 @@ public partial class UsagePopup : Window
     private DateTimeOffset? _claude5hReset, _claude7dReset;
     private DateTimeOffset? _zai5hReset, _zaiMoReset;
     private double? _zai5hPercent, _zaiMoPercent;
+
+    // Latest used/expected percent per AI window, used for compact-view rendering.
+    private double _codex5hUsed, _codex7dUsed;
+    private double? _codex5hExpected, _codex7dExpected;
+    private double _claude5hUsed, _claude7dUsed;
+    private double? _claude5hExpected, _claude7dExpected;
+    private double? _zai5hExpected, _zaiMoExpected;
+
+    // Per-bar state for target-aware rendering: used%, expected% (pace target), base color.
+    private sealed class TargetBarState
+    {
+        public Grid Container = null!;
+        public Border Fill = null!;
+        public Border Tick = null!;
+        public Color BaseColor;
+        public double Used;
+        public double? Expected;
+    }
+    private readonly List<TargetBarState> _targetBars = new();
 
     // Single source of truth: the usage-api aggregator.
     private UsageApiService? _usageApiService;
@@ -101,6 +122,14 @@ public partial class UsagePopup : Window
             }
         }
 
+        // Register target-aware bars so they re-render on resize.
+        RegisterTargetBar(CodexPrimaryBar, CodexPrimaryBarFill, CodexPrimaryBarTick, Color.FromRgb(0x8B, 0xC3, 0x4A));
+        RegisterTargetBar(CodexSecondaryBar, CodexSecondaryBarFill, CodexSecondaryBarTick, Color.FromRgb(0xB3, 0x9D, 0xDB));
+        RegisterTargetBar(ClaudeCodePrimaryBar, ClaudeCodePrimaryBarFill, ClaudeCodePrimaryBarTick, Color.FromRgb(0xFF, 0x8A, 0x65));
+        RegisterTargetBar(ClaudeCodeSecondaryBar, ClaudeCodeSecondaryBarFill, ClaudeCodeSecondaryBarTick, Color.FromRgb(0xFF, 0xB7, 0x4D));
+        RegisterTargetBar(ZaiTokenBar, ZaiTokenBarFill, ZaiTokenBarTick, Color.FromRgb(0xBA, 0x68, 0xC8));
+        RegisterTargetBar(ZaiMonthlyBar, ZaiMonthlyBarFill, ZaiMonthlyBarTick, Color.FromRgb(0x7E, 0x57, 0xC2));
+
         // Initialize AI services
         InitializeAiServices();
         SetViewMode(PopupViewMode.Full);
@@ -133,6 +162,87 @@ public partial class UsagePopup : Window
         // returned data. NoKeysHint also flips off after the first successful response.
         NoKeysHint.IsVisible = false;
         ConfigPathText.Text = $"Source: {_config.UsageApiUrl}";
+    }
+
+    private void RegisterTargetBar(Grid container, Border fill, Border tick, Color baseColor)
+    {
+        var state = new TargetBarState
+        {
+            Container = container,
+            Fill = fill,
+            Tick = tick,
+            BaseColor = baseColor,
+        };
+        _targetBars.Add(state);
+        container.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == BoundsProperty)
+                RenderTargetBar(state);
+        };
+    }
+
+    private void SetTargetBar(Grid container, double used, double? expected)
+    {
+        var state = _targetBars.FirstOrDefault(s => ReferenceEquals(s.Container, container));
+        if (state == null) return;
+        state.Used = used;
+        state.Expected = expected;
+        RenderTargetBar(state);
+    }
+
+    private static void RenderTargetBar(TargetBarState s)
+    {
+        var w = s.Container.Bounds.Width;
+        if (w <= 0) return;
+
+        var used = Math.Clamp(s.Used, 0, 100);
+        s.Fill.Width = used / 100.0 * w;
+        s.Fill.Background = new SolidColorBrush(BlendOverColor(s.BaseColor, s.Expected, used));
+
+        if (s.Expected is double exp && exp > 0 && exp < 100)
+        {
+            var x = exp / 100.0 * w;
+            s.Tick.Margin = new Thickness(Math.Max(0, x - 1), 0, 0, 0);
+            s.Tick.IsVisible = true;
+        }
+        else
+        {
+            s.Tick.IsVisible = false;
+        }
+    }
+
+    private static void RenderCompactBar(Border fill, Border tick, Color baseColor, double used, double? expected, double width)
+    {
+        var u = Math.Clamp(used, 0, 100);
+        fill.Width = u / 100.0 * width;
+        fill.Background = new SolidColorBrush(BlendOverColor(baseColor, expected, u));
+        if (expected is double exp && exp > 0 && exp < 100)
+        {
+            var x = exp / 100.0 * width;
+            tick.Margin = new Thickness(Math.Max(0, x - 1), 0, 0, 0);
+            tick.IsVisible = true;
+        }
+        else
+        {
+            tick.IsVisible = false;
+        }
+    }
+
+    // Blend the base color toward yellow then red as used grows past the target.
+    private static Color BlendOverColor(Color baseColor, double? expected, double used)
+    {
+        if (expected is not double exp || used <= exp) return baseColor;
+        var headroom = Math.Max(1.0, 100.0 - exp);
+        var t = Math.Clamp((used - exp) / headroom, 0, 1);
+        var yellow = Color.FromRgb(0xFF, 0xEB, 0x3B);
+        var red = Color.FromRgb(0xF4, 0x43, 0x36);
+        return t < 0.5 ? Lerp(baseColor, yellow, t * 2) : Lerp(yellow, red, (t - 0.5) * 2);
+    }
+
+    private static Color Lerp(Color a, Color b, double t)
+    {
+        byte L(byte x, byte y) => (byte)Math.Round(x + (y - x) * t);
+        return Color.FromArgb(L(a.A, b.A), L(a.R, b.R), L(a.G, b.G), L(a.B, b.B));
     }
 
     public void TogglePopup()
@@ -382,8 +492,12 @@ public partial class UsagePopup : Window
         var primary = Math.Clamp(c.Primary.UsedPercent, 0, 100);
         var secondary = Math.Clamp(c.Secondary.UsedPercent, 0, 100);
         CodexCreditsText.Text = $"{primary:F0}% / {secondary:F0}% used";
-        CodexPrimaryBar.Value = primary;
-        CodexSecondaryBar.Value = secondary;
+        _codex5hUsed = primary;
+        _codex7dUsed = secondary;
+        _codex5hExpected = c.Primary.ExpectedPercent;
+        _codex7dExpected = c.Secondary.ExpectedPercent;
+        SetTargetBar(CodexPrimaryBar, primary, _codex5hExpected);
+        SetTargetBar(CodexSecondaryBar, secondary, _codex7dExpected);
         _codex5hReset = c.Primary.ResetsAt;
         _codex7dReset = c.Secondary.ResetsAt;
         CodexRangeText.Text = $"5h: in {FormatResetCountdown(c.Primary.ResetsAt)} • 7d: {FormatResetDate(c.Secondary.ResetsAt)}";
@@ -394,8 +508,12 @@ public partial class UsagePopup : Window
         ClaudeCodeSection.IsVisible = c != null;
         if (c == null) return;
         ClaudeCodeCreditsText.Text = $"{c.FiveHour.UsedPercent:F0}% / {c.SevenDay.UsedPercent:F0}% used";
-        ClaudeCodePrimaryBar.Value = c.FiveHour.UsedPercent;
-        ClaudeCodeSecondaryBar.Value = c.SevenDay.UsedPercent;
+        _claude5hUsed = c.FiveHour.UsedPercent;
+        _claude7dUsed = c.SevenDay.UsedPercent;
+        _claude5hExpected = c.FiveHour.ExpectedPercent;
+        _claude7dExpected = c.SevenDay.ExpectedPercent;
+        SetTargetBar(ClaudeCodePrimaryBar, _claude5hUsed, _claude5hExpected);
+        SetTargetBar(ClaudeCodeSecondaryBar, _claude7dUsed, _claude7dExpected);
         _claude5hReset = c.FiveHour.ResetsAt;
         _claude7dReset = c.SevenDay.ResetsAt;
         ClaudeCodeRangeText.Text = $"5h: in {FormatResetCountdown(c.FiveHour.ResetsAt)} • 7d: {FormatResetDate(c.SevenDay.ResetsAt)}";
@@ -408,28 +526,18 @@ public partial class UsagePopup : Window
 
         _zai5hPercent = z.FiveHour?.UsedPercent;
         _zai5hReset = z.FiveHour?.ResetsAt;
+        _zai5hExpected = z.FiveHour?.ExpectedPercent;
         _zaiMoPercent = z.Monthly?.UsedPercent;
         _zaiMoReset = z.Monthly?.ResetsAt;
+        _zaiMoExpected = z.Monthly?.ExpectedPercent;
 
+        ZaiTokenBar.IsVisible = z.FiveHour != null;
         if (z.FiveHour != null)
-        {
-            ZaiTokenBar.Value = z.FiveHour.UsedPercent;
-            ZaiTokenBar.IsVisible = true;
-        }
-        else
-        {
-            ZaiTokenBar.IsVisible = false;
-        }
+            SetTargetBar(ZaiTokenBar, z.FiveHour.UsedPercent, _zai5hExpected);
 
+        ZaiMonthlyBar.IsVisible = z.Monthly != null;
         if (z.Monthly != null)
-        {
-            ZaiMonthlyBar.Value = z.Monthly.UsedPercent;
-            ZaiMonthlyBar.IsVisible = true;
-        }
-        else
-        {
-            ZaiMonthlyBar.IsVisible = false;
-        }
+            SetTargetBar(ZaiMonthlyBar, z.Monthly.UsedPercent, _zaiMoExpected);
         ZaiDetailText.IsVisible = false;
 
         var headerParts = new List<string>();
@@ -525,22 +633,22 @@ public partial class UsagePopup : Window
         OpenAiCompactText.Text = OpenAiCreditsText.Text ?? "—";
 
         const double barWidth = 62.0;
-        CodexCompact5hBar.Width = Math.Clamp(CodexPrimaryBar.Value / 100.0, 0, 1) * barWidth;
-        CodexCompact7dBar.Width = Math.Clamp(CodexSecondaryBar.Value / 100.0, 0, 1) * barWidth;
-        CodexCompact5hPct.Text = $"{CodexPrimaryBar.Value:F0}%";
-        CodexCompact7dPct.Text = $"{CodexSecondaryBar.Value:F0}%";
+        RenderCompactBar(CodexCompact5hBar, CodexCompact5hTick, Color.FromRgb(0x8B, 0xC3, 0x4A), _codex5hUsed, _codex5hExpected, barWidth);
+        RenderCompactBar(CodexCompact7dBar, CodexCompact7dTick, Color.FromRgb(0xB3, 0x9D, 0xDB), _codex7dUsed, _codex7dExpected, barWidth);
+        CodexCompact5hPct.Text = $"{_codex5hUsed:F0}%";
+        CodexCompact7dPct.Text = $"{_codex7dUsed:F0}%";
         CodexCompact5hReset.Text = _codex5hReset.HasValue ? $"in {FormatResetCountdown(_codex5hReset)}" : "";
         CodexCompact7dReset.Text = _codex7dReset.HasValue ? FormatResetDate(_codex7dReset) : "";
 
-        ClaudeCompact5hBar.Width = Math.Clamp(ClaudeCodePrimaryBar.Value / 100.0, 0, 1) * barWidth;
-        ClaudeCompact7dBar.Width = Math.Clamp(ClaudeCodeSecondaryBar.Value / 100.0, 0, 1) * barWidth;
-        ClaudeCompact5hPct.Text = $"{ClaudeCodePrimaryBar.Value:F0}%";
-        ClaudeCompact7dPct.Text = $"{ClaudeCodeSecondaryBar.Value:F0}%";
+        RenderCompactBar(ClaudeCompact5hBar, ClaudeCompact5hTick, Color.FromRgb(0xFF, 0x8A, 0x65), _claude5hUsed, _claude5hExpected, barWidth);
+        RenderCompactBar(ClaudeCompact7dBar, ClaudeCompact7dTick, Color.FromRgb(0xFF, 0xB7, 0x4D), _claude7dUsed, _claude7dExpected, barWidth);
+        ClaudeCompact5hPct.Text = $"{_claude5hUsed:F0}%";
+        ClaudeCompact7dPct.Text = $"{_claude7dUsed:F0}%";
         ClaudeCompact5hReset.Text = _claude5hReset.HasValue ? $"in {FormatResetCountdown(_claude5hReset)}" : "";
         ClaudeCompact7dReset.Text = _claude7dReset.HasValue ? FormatResetDate(_claude7dReset) : "";
 
-        ZaiCompact5hBar.Width = Math.Clamp((_zai5hPercent ?? 0) / 100.0, 0, 1) * barWidth;
-        ZaiCompactMoBar.Width = Math.Clamp((_zaiMoPercent ?? 0) / 100.0, 0, 1) * barWidth;
+        RenderCompactBar(ZaiCompact5hBar, ZaiCompact5hTick, Color.FromRgb(0xBA, 0x68, 0xC8), _zai5hPercent ?? 0, _zai5hExpected, barWidth);
+        RenderCompactBar(ZaiCompactMoBar, ZaiCompactMoTick, Color.FromRgb(0x7E, 0x57, 0xC2), _zaiMoPercent ?? 0, _zaiMoExpected, barWidth);
         ZaiCompact5hPct.Text = _zai5hPercent.HasValue ? $"{_zai5hPercent.Value:F0}%" : "—";
         ZaiCompactMoPct.Text = _zaiMoPercent.HasValue ? $"{_zaiMoPercent.Value:F0}%" : "—";
         ZaiCompact5hReset.Text = _zai5hReset.HasValue ? $"in {FormatResetCountdown(_zai5hReset)}" : "";
