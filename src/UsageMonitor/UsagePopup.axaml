@@ -97,17 +97,17 @@
                                 </Grid>
                                 <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="22,*">
                                     <TextBlock Grid.Row="0" Grid.Column="0" Text="5h" FontSize="8" Foreground="#666666" VerticalAlignment="Center" Margin="0,0,0,3" />
-                                    <ProgressBar x:Name="CodexPrimaryBar"
-                                                 Grid.Row="0" Grid.Column="1"
-                                                 Minimum="0" Maximum="100" Value="0"
-                                                 Height="4" CornerRadius="2" Margin="0,0,0,3"
-                                                 Foreground="#8BC34A" Background="#333333" />
+                                    <Grid x:Name="CodexPrimaryBar" Grid.Row="0" Grid.Column="1" Height="4" Margin="0,0,0,3" ClipToBounds="True">
+                                        <Border Background="#333333" CornerRadius="2" />
+                                        <Border x:Name="CodexPrimaryBarFill" Background="#8BC34A" CornerRadius="2" HorizontalAlignment="Left" Width="0" />
+                                        <Border x:Name="CodexPrimaryBarTick" Background="#FFFFFF" Width="2" HorizontalAlignment="Left" IsVisible="False" />
+                                    </Grid>
                                     <TextBlock Grid.Row="1" Grid.Column="0" Text="7d" FontSize="8" Foreground="#666666" VerticalAlignment="Center" Margin="0,0,0,3" />
-                                    <ProgressBar x:Name="CodexSecondaryBar"
-                                                 Grid.Row="1" Grid.Column="1"
-                                                 Minimum="0" Maximum="100" Value="0"
-                                                 Height="4" CornerRadius="2" Margin="0,0,0,3"
-                                                 Foreground="#B39DDB" Background="#333333" />
+                                    <Grid x:Name="CodexSecondaryBar" Grid.Row="1" Grid.Column="1" Height="4" Margin="0,0,0,3" ClipToBounds="True">
+                                        <Border Background="#333333" CornerRadius="2" />
+                                        <Border x:Name="CodexSecondaryBarFill" Background="#B39DDB" CornerRadius="2" HorizontalAlignment="Left" Width="0" />
+                                        <Border x:Name="CodexSecondaryBarTick" Background="#FFFFFF" Width="2" HorizontalAlignment="Left" IsVisible="False" />
+                                    </Grid>
                                     <TextBlock x:Name="CodexRangeText"
                                                Grid.Row="2" Grid.ColumnSpan="2"
                                                Text="" FontSize="8" Foreground="#555555" TextWrapping="Wrap" />
@@ -123,17 +123,17 @@
                                 </Grid>
                                 <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="22,*">
                                     <TextBlock Grid.Row="0" Grid.Column="0" Text="5h" FontSize="8" Foreground="#666666" VerticalAlignment="Center" Margin="0,0,0,3" />
-                                    <ProgressBar x:Name="ClaudeCodePrimaryBar"
-                                                 Grid.Row="0" Grid.Column="1"
-                                                 Minimum="0" Maximum="100" Value="0"
-                                                 Height="4" CornerRadius="2" Margin="0,0,0,3"
-                                                 Foreground="#FF8A65" Background="#333333" />
+                                    <Grid x:Name="ClaudeCodePrimaryBar" Grid.Row="0" Grid.Column="1" Height="4" Margin="0,0,0,3" ClipToBounds="True">
+                                        <Border Background="#333333" CornerRadius="2" />
+                                        <Border x:Name="ClaudeCodePrimaryBarFill" Background="#FF8A65" CornerRadius="2" HorizontalAlignment="Left" Width="0" />
+                                        <Border x:Name="ClaudeCodePrimaryBarTick" Background="#FFFFFF" Width="2" HorizontalAlignment="Left" IsVisible="False" />
+                                    </Grid>
                                     <TextBlock Grid.Row="1" Grid.Column="0" Text="7d" FontSize="8" Foreground="#666666" VerticalAlignment="Center" Margin="0,0,0,3" />
-                                    <ProgressBar x:Name="ClaudeCodeSecondaryBar"
-                                                 Grid.Row="1" Grid.Column="1"
-                                                 Minimum="0" Maximum="100" Value="0"
-                                                 Height="4" CornerRadius="2" Margin="0,0,0,3"
-                                                 Foreground="#FFB74D" Background="#333333" />
+                                    <Grid x:Name="ClaudeCodeSecondaryBar" Grid.Row="1" Grid.Column="1" Height="4" Margin="0,0,0,3" ClipToBounds="True">
+                                        <Border Background="#333333" CornerRadius="2" />
+                                        <Border x:Name="ClaudeCodeSecondaryBarFill" Background="#FFB74D" CornerRadius="2" HorizontalAlignment="Left" Width="0" />
+                                        <Border x:Name="ClaudeCodeSecondaryBarTick" Background="#FFFFFF" Width="2" HorizontalAlignment="Left" IsVisible="False" />
+                                    </Grid>
                                 </Grid>
                                 <TextBlock x:Name="ClaudeCodeRangeText" Text="" FontSize="8" Foreground="#555555" TextWrapping="Wrap" />
                             </StackPanel>
@@ -147,17 +147,17 @@
                                 </Grid>
                                 <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="22,*">
                                     <TextBlock Grid.Row="0" Grid.Column="0" Text="5h" FontSize="8" Foreground="#666666" VerticalAlignment="Center" Margin="0,0,0,3" />
-                                    <ProgressBar x:Name="ZaiTokenBar"
-                                                 Grid.Row="0" Grid.Column="1"
-                                                 Minimum="0" Maximum="100" Value="0"
-                                                 Height="4" CornerRadius="2" Margin="0,0,0,3"
-                                                 Foreground="#BA68C8" Background="#333333" />
+                                    <Grid x:Name="ZaiTokenBar" Grid.Row="0" Grid.Column="1" Height="4" Margin="0,0,0,3" ClipToBounds="True">
+                                        <Border Background="#333333" CornerRadius="2" />
+                                        <Border x:Name="ZaiTokenBarFill" Background="#BA68C8" CornerRadius="2" HorizontalAlignment="Left" Width="0" />
+                                        <Border x:Name="ZaiTokenBarTick" Background="#FFFFFF" Width="2" HorizontalAlignment="Left" IsVisible="False" />
+                                    </Grid>
                                     <TextBlock Grid.Row="1" Grid.Column="0" Text="Month" FontSize="8" Foreground="#666666" VerticalAlignment="Center" Margin="0,0,0,3" />
-                                    <ProgressBar x:Name="ZaiMonthlyBar"
-                                                 Grid.Row="1" Grid.Column="1"
-                                                 Minimum="0" Maximum="100" Value="0"
-                                                 Height="4" CornerRadius="2" Margin="0,0,0,3"
-                                                 Foreground="#7E57C2" Background="#333333" />
+                                    <Grid x:Name="ZaiMonthlyBar" Grid.Row="1" Grid.Column="1" Height="4" Margin="0,0,0,3" ClipToBounds="True">
+                                        <Border Background="#333333" CornerRadius="2" />
+                                        <Border x:Name="ZaiMonthlyBarFill" Background="#7E57C2" CornerRadius="2" HorizontalAlignment="Left" Width="0" />
+                                        <Border x:Name="ZaiMonthlyBarTick" Background="#FFFFFF" Width="2" HorizontalAlignment="Left" IsVisible="False" />
+                                    </Grid>
                                     <TextBlock x:Name="ZaiDetailText" Grid.Row="2" Grid.ColumnSpan="2" Text="" FontSize="8" Foreground="#555555" TextWrapping="Wrap" />
                                     <TextBlock x:Name="ZaiTokenText" Grid.Row="3" Grid.ColumnSpan="2" Text="" FontSize="8" Foreground="#555555" TextWrapping="Wrap" />
                                 </Grid>
@@ -245,6 +245,7 @@
                             <Grid Grid.Column="1" Width="62" Height="4" Margin="2,0,4,0" VerticalAlignment="Center" HorizontalAlignment="Left">
                                 <Border Background="#333333" CornerRadius="2" />
                                 <Border x:Name="CodexCompact5hBar" Background="#8BC34A" CornerRadius="2" HorizontalAlignment="Left" Width="0" />
+                                <Border x:Name="CodexCompact5hTick" Background="#FFFFFF" Width="2" HorizontalAlignment="Left" IsVisible="False" />
                             </Grid>
                             <TextBlock x:Name="CodexCompact5hPct" Grid.Column="2" Text="—" FontSize="8" Foreground="#D3F2A3" TextAlignment="Right" VerticalAlignment="Center" />
                             <TextBlock x:Name="CodexCompact5hReset" Grid.Column="3" Text="" FontSize="8" Foreground="#888888" TextAlignment="Right" VerticalAlignment="Center" />
@@ -254,6 +255,7 @@
                             <Grid Grid.Column="1" Width="62" Height="4" Margin="2,0,4,0" VerticalAlignment="Center" HorizontalAlignment="Left">
                                 <Border Background="#333333" CornerRadius="2" />
                                 <Border x:Name="CodexCompact7dBar" Background="#B39DDB" CornerRadius="2" HorizontalAlignment="Left" Width="0" />
+                                <Border x:Name="CodexCompact7dTick" Background="#FFFFFF" Width="2" HorizontalAlignment="Left" IsVisible="False" />
                             </Grid>
                             <TextBlock x:Name="CodexCompact7dPct" Grid.Column="2" Text="—" FontSize="8" Foreground="#D3F2A3" TextAlignment="Right" VerticalAlignment="Center" />
                             <TextBlock x:Name="CodexCompact7dReset" Grid.Column="3" Text="" FontSize="8" Foreground="#888888" TextAlignment="Right" VerticalAlignment="Center" />
@@ -265,6 +267,7 @@
                             <Grid Grid.Column="1" Width="62" Height="4" Margin="2,0,4,0" VerticalAlignment="Center" HorizontalAlignment="Left">
                                 <Border Background="#333333" CornerRadius="2" />
                                 <Border x:Name="ClaudeCompact5hBar" Background="#FF8A65" CornerRadius="2" HorizontalAlignment="Left" Width="0" />
+                                <Border x:Name="ClaudeCompact5hTick" Background="#FFFFFF" Width="2" HorizontalAlignment="Left" IsVisible="False" />
                             </Grid>
                             <TextBlock x:Name="ClaudeCompact5hPct" Grid.Column="2" Text="—" FontSize="8" Foreground="#FFD3C0" TextAlignment="Right" VerticalAlignment="Center" />
                             <TextBlock x:Name="ClaudeCompact5hReset" Grid.Column="3" Text="" FontSize="8" Foreground="#888888" TextAlignment="Right" VerticalAlignment="Center" />
@@ -274,6 +277,7 @@
                             <Grid Grid.Column="1" Width="62" Height="4" Margin="2,0,4,0" VerticalAlignment="Center" HorizontalAlignment="Left">
                                 <Border Background="#333333" CornerRadius="2" />
                                 <Border x:Name="ClaudeCompact7dBar" Background="#FFB74D" CornerRadius="2" HorizontalAlignment="Left" Width="0" />
+                                <Border x:Name="ClaudeCompact7dTick" Background="#FFFFFF" Width="2" HorizontalAlignment="Left" IsVisible="False" />
                             </Grid>
                             <TextBlock x:Name="ClaudeCompact7dPct" Grid.Column="2" Text="—" FontSize="8" Foreground="#FFD3C0" TextAlignment="Right" VerticalAlignment="Center" />
                             <TextBlock x:Name="ClaudeCompact7dReset" Grid.Column="3" Text="" FontSize="8" Foreground="#888888" TextAlignment="Right" VerticalAlignment="Center" />
@@ -285,6 +289,7 @@
                             <Grid Grid.Column="1" Width="62" Height="4" Margin="2,0,4,0" VerticalAlignment="Center" HorizontalAlignment="Left">
                                 <Border Background="#333333" CornerRadius="2" />
                                 <Border x:Name="ZaiCompact5hBar" Background="#BA68C8" CornerRadius="2" HorizontalAlignment="Left" Width="0" />
+                                <Border x:Name="ZaiCompact5hTick" Background="#FFFFFF" Width="2" HorizontalAlignment="Left" IsVisible="False" />
                             </Grid>
                             <TextBlock x:Name="ZaiCompact5hPct" Grid.Column="2" Text="—" FontSize="8" Foreground="#E1C5EA" TextAlignment="Right" VerticalAlignment="Center" />
                             <TextBlock x:Name="ZaiCompact5hReset" Grid.Column="3" Text="" FontSize="8" Foreground="#888888" TextAlignment="Right" VerticalAlignment="Center" />
@@ -294,6 +299,7 @@
                             <Grid Grid.Column="1" Width="62" Height="4" Margin="2,0,4,0" VerticalAlignment="Center" HorizontalAlignment="Left">
                                 <Border Background="#333333" CornerRadius="2" />
                                 <Border x:Name="ZaiCompactMoBar" Background="#7E57C2" CornerRadius="2" HorizontalAlignment="Left" Width="0" />
+                                <Border x:Name="ZaiCompactMoTick" Background="#FFFFFF" Width="2" HorizontalAlignment="Left" IsVisible="False" />
                             </Grid>
                             <TextBlock x:Name="ZaiCompactMoPct" Grid.Column="2" Text="—" FontSize="8" Foreground="#E1C5EA" TextAlignment="Right" VerticalAlignment="Center" />
                             <TextBlock x:Name="ZaiCompactMoReset" Grid.Column="3" Text="" FontSize="8" Foreground="#888888" TextAlignment="Right" VerticalAlignment="Center" />
