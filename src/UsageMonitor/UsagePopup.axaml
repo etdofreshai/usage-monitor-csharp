@@ -172,6 +172,13 @@
                         </StackPanel>
                     </Border>
 
+                    <TextBlock x:Name="BuildInfoText"
+                               Text=""
+                               FontSize="8"
+                               Foreground="#555555"
+                               HorizontalAlignment="Right"
+                               Margin="0,2,0,0" />
+
                 </StackPanel>
 
             <Border x:Name="CompactView"
@@ -191,18 +198,47 @@
                                    Foreground="#555555"
                                    FontWeight="Bold"
                                    VerticalAlignment="Center" />
-                        <Button x:Name="RestoreFullButton"
-                                Grid.Column="1"
-                                Width="22" Height="22"
-                                Background="Transparent"
-                                BorderThickness="0"
-                                CornerRadius="11"
-                                Padding="0"
-                                ToolTip.Tip="Restore full">
-                            <Image x:Name="RestoreFullIcon"
-                                   Width="16"
-                                   Height="16" />
-                        </Button>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
+                            <Button x:Name="UpdateButtonCompact"
+                                    Width="22" Height="22"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    CornerRadius="11"
+                                    Padding="0"
+                                    IsVisible="False"
+                                    ToolTip.Tip="Update available - click to update and restart">
+                                <TextBlock Text="&#x21BB;"
+                                           FontSize="14"
+                                           Foreground="#4CAF50"
+                                           FontWeight="Bold"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" />
+                            </Button>
+                            <Button x:Name="RestoreFullButton"
+                                    Width="22" Height="22"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    CornerRadius="11"
+                                    Padding="0"
+                                    ToolTip.Tip="Restore full">
+                                <Image x:Name="RestoreFullIcon"
+                                       Width="16"
+                                       Height="16" />
+                            </Button>
+                            <Button x:Name="CloseCompactButton"
+                                    Width="22" Height="22"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    CornerRadius="11"
+                                    Padding="0"
+                                    ToolTip.Tip="Close">
+                                <Path Data="M18.3,5.71 L12,12 L5.71,5.71 M5.71,18.29 L12,12 L18.3,18.29"
+                                      Stroke="#888888"
+                                      StrokeThickness="2"
+                                      Width="12" Height="12"
+                                      Stretch="Uniform" />
+                            </Button>
+                        </StackPanel>
                     </Grid>
 
                     <!-- System one-liners -->
@@ -319,27 +355,53 @@
                     BorderBrush="#404040"
                     BorderThickness="1"
                     Padding="6">
-                <Button x:Name="RestoreIconButton"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        Padding="0"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        HorizontalContentAlignment="Center"
-                        VerticalContentAlignment="Center"
-                        ToolTip.Tip="Restore full">
-                    <Image x:Name="RestoreIconImage"
-                           Width="26"
-                           Height="26"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center" />
-                </Button>
+                <Grid>
+                    <Button x:Name="RestoreIconButton"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Padding="0"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"
+                            ToolTip.Tip="Restore full">
+                        <Image x:Name="RestoreIconImage"
+                               Width="26"
+                               Height="26"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center" />
+                    </Button>
+                    <Border x:Name="IconOnlyUpdateDot"
+                            Width="10" Height="10"
+                            CornerRadius="5"
+                            Background="#4CAF50"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Top"
+                            IsVisible="False"
+                            ToolTip.Tip="Update available" />
+                </Grid>
             </Border>
 
             <StackPanel HorizontalAlignment="Right"
                         VerticalAlignment="Top"
                         Orientation="Horizontal"
                         Spacing="4">
+                <Button x:Name="UpdateButton"
+                        Width="24" Height="24"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        CornerRadius="12"
+                        Padding="0"
+                        IsVisible="False"
+                        ToolTip.Tip="Update available - click to update and restart">
+                    <TextBlock Text="&#x21BB;"
+                               FontSize="16"
+                               Foreground="#4CAF50"
+                               FontWeight="Bold"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center" />
+                </Button>
+
                 <Button x:Name="CompactButton"
                         Width="28" Height="24"
                         Background="Transparent"

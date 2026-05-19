@@ -47,5 +47,15 @@ Usage Monitor is a Windows system tray application that displays system resource
 - Uses Windows PerformanceCounter for CPU, GlobalMemoryStatusEx for RAM
 - Network speeds calculated from delta of NetworkInterface stats
 - AI service sections auto-hide when no API key is configured
-- X button hides the popup (doesn't quit the app)
+- X button hides the popup in both Full and Compact views (doesn't quit the app)
+- Compact view has X button next to restore icon for hiding back to system tray
 - Right-click tray icon → Quit to fully exit
+
+### Auto-Update
+
+- `BuildInfo.cs` is auto-generated at build time with git commit SHA and UTC build date
+- If `RepoPath` is set in config (or `USAGE_MONITOR_REPO` env var), the app checks for updates every 30 minutes
+- Update detection: `git fetch origin master`, compares remote SHA vs local, checks if remote is newer
+- When update available: green ↻ button appears in Full and Compact views, green dot on Icon-Only view
+- Clicking update: pulls latest, builds, restarts the app
+- If `RepoPath` is null (default), auto-update is disabled

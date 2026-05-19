@@ -26,6 +26,9 @@ public class Config
     // fast is cheap on its end.
     public int RefreshIntervalSeconds { get; set; } = 5;
 
+    // Path to the local git checkout used for auto-update. null disables update checks.
+    public string? RepoPath { get; set; }
+
     public static Config Load()
     {
         try
@@ -57,6 +60,10 @@ public class Config
         var url = Environment.GetEnvironmentVariable("USAGE_API_URL");
         if (!string.IsNullOrEmpty(url))
             config.UsageApiUrl = url;
+
+        var repo = Environment.GetEnvironmentVariable("USAGE_MONITOR_REPO");
+        if (!string.IsNullOrEmpty(repo))
+            config.RepoPath = repo;
     }
 
     public void Save()

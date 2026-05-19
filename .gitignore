@@ -39,3 +39,6 @@ bld/
 
 ## Temp
 tmp/
+
+## Auto-generated build info
+src/UsageMonitor/BuildInfo.cs
