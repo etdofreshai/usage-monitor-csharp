@@ -41,6 +41,12 @@ public partial class UsagePopup : Window
     private PixelPoint _dragStartScreenPoint;
     private PixelPoint _windowStartPosition;
 
+    // Pinned bottom-right corner in screen pixels. When set, the window re-anchors
+    // here on every Bounds change so async content growth (AI sections appearing,
+    // view-mode switches) does not push the bottom edge past the taskbar.
+    // Cleared the moment the user drags, so a dragged window stays put.
+    private PixelPoint? _anchorBottomRight;
+
     // Network tracking
     private long _lastBytesSent;
     private long _lastBytesReceived;
@@ -51,15 +57,20 @@ public partial class UsagePopup : Window
 
     // Latest reset timestamps (driven by RefreshXxxAsync, read by UpdateCompactSummary)
     private DateTimeOffset? _codex5hReset, _codex7dReset;
-    private DateTimeOffset? _claude5hReset, _claude7dReset;
+    private DateTimeOffset? _codexSpark5hReset, _codexSpark7dReset;
+    private DateTimeOffset? _claude5hReset, _claude7dReset, _claudeDesignReset;
     private DateTimeOffset? _zai5hReset, _zaiMoReset;
     private double? _zai5hPercent, _zaiMoPercent;
 
     // Latest used/expected percent per AI window, used for compact-view rendering.
     private double _codex5hUsed, _codex7dUsed;
     private double? _codex5hExpected, _codex7dExpected;
+    private double? _codexSpark5hUsed, _codexSpark7dUsed;
+    private double? _codexSpark5hExpected, _codexSpark7dExpected;
     private double _claude5hUsed, _claude7dUsed;
     private double? _claude5hExpected, _claude7dExpected;
+    private double? _claudeDesignUsed;
+    private double? _claudeDesignExpected;
     private double? _zai5hExpected, _zaiMoExpected;
 
     // Per-bar state for target-aware rendering: used%, expected% (pace target), base color.
@@ -125,34 +136,53 @@ public partial class UsagePopup : Window
         // Register target-aware bars so they re-render on resize.
         RegisterTargetBar(CodexPrimaryBar, CodexPrimaryBarFill, CodexPrimaryBarTick, Color.FromRgb(0x8B, 0xC3, 0x4A));
         RegisterTargetBar(CodexSecondaryBar, CodexSecondaryBarFill, CodexSecondaryBarTick, Color.FromRgb(0xB3, 0x9D, 0xDB));
+        RegisterTargetBar(CodexSparkPrimaryBar, CodexSparkPrimaryBarFill, CodexSparkPrimaryBarTick, Color.FromRgb(0x4D, 0xD0, 0xE1));
+        RegisterTargetBar(CodexSparkSecondaryBar, CodexSparkSecondaryBarFill, CodexSparkSecondaryBarTick, Color.FromRgb(0x4D, 0xB6, 0xAC));
         RegisterTargetBar(ClaudeCodePrimaryBar, ClaudeCodePrimaryBarFill, ClaudeCodePrimaryBarTick, Color.FromRgb(0xFF, 0x8A, 0x65));
         RegisterTargetBar(ClaudeCodeSecondaryBar, ClaudeCodeSecondaryBarFill, ClaudeCodeSecondaryBarTick, Color.FromRgb(0xFF, 0xB7, 0x4D));
+        RegisterTargetBar(ClaudeDesignBar, ClaudeDesignBarFill, ClaudeDesignBarTick, Color.FromRgb(0xF4, 0x8F, 0xB1));
         RegisterTargetBar(ZaiTokenBar, ZaiTokenBarFill, ZaiTokenBarTick, Color.FromRgb(0xBA, 0x68, 0xC8));
         RegisterTargetBar(ZaiMonthlyBar, ZaiMonthlyBarFill, ZaiMonthlyBarTick, Color.FromRgb(0x7E, 0x57, 0xC2));
 
         // Initialize AI services
         InitializeAiServices();
-        SetViewMode(PopupViewMode.Full);
+        SetViewMode(PopupViewMode.Compact);
 
         // Position near taskbar on first show only
         Opened += (s, e) =>
         {
             MakeWindowNonActivating();
-            // Position after layout so Bounds reflects actual rendered size
-            Dispatcher.UIThread.Post(() =>
-            {
-                if (Screens.Primary is { } screen)
-                {
-                    var workArea = screen.WorkingArea;
-                    var scaling = screen.Scaling;
-                    var pixelW = (int)(Bounds.Width * scaling);
-                    var pixelH = (int)(Bounds.Height * scaling);
-                    Position = new PixelPoint(
-                        workArea.X + workArea.Width - pixelW,
-                        workArea.Y + workArea.Height - pixelH);
-                }
-            }, DispatcherPriority.Loaded);
+            PinToTaskbarCorner();
+            Dispatcher.UIThread.Post(ReanchorIfPinned, DispatcherPriority.Loaded);
         };
+
+        // Re-anchor whenever the window resizes (e.g., async AI data revealing
+        // sections, view-mode toggles), so the bottom edge never overlaps the taskbar.
+        PropertyChanged += (_, e) =>
+        {
+            if (e.Property == BoundsProperty)
+                ReanchorIfPinned();
+        };
+    }
+
+    private void PinToTaskbarCorner()
+    {
+        if (Screens.Primary is not { } screen) return;
+        var workArea = screen.WorkingArea;
+        var scaling = screen.Scaling;
+        var margin = (int)(4 * scaling);
+        _anchorBottomRight = new PixelPoint(
+            workArea.X + workArea.Width - margin,
+            workArea.Y + workArea.Height - margin);
+    }
+
+    private void ReanchorIfPinned()
+    {
+        if (_anchorBottomRight is not PixelPoint anchor) return;
+        var scaling = Screens.Primary?.Scaling ?? 1;
+        var pixelW = (int)(Bounds.Width * scaling);
+        var pixelH = (int)(Bounds.Height * scaling);
+        Position = new PixelPoint(anchor.X - pixelW, anchor.Y - pixelH);
     }
 
     private void InitializeAiServices()
@@ -248,19 +278,15 @@ public partial class UsagePopup : Window
     public void TogglePopup()
     {
         if (IsVisible)
-        {
-            if (_viewMode == PopupViewMode.Full)
-                HidePopup();
-            else
-                SetViewMode(PopupViewMode.Full);
-        }
+            HidePopup();
         else
             ShowPopup();
     }
 
     public void ShowPopup()
     {
-        SetViewMode(PopupViewMode.Full, anchorBottomRight: false);
+        SetViewMode(PopupViewMode.Compact, anchorBottomRight: false);
+        PinToTaskbarCorner();
         Show();
         RefreshSystem();
         _systemRefreshTimer.Start();
@@ -500,7 +526,54 @@ public partial class UsagePopup : Window
         SetTargetBar(CodexSecondaryBar, secondary, _codex7dExpected);
         _codex5hReset = c.Primary.ResetsAt;
         _codex7dReset = c.Secondary.ResetsAt;
-        CodexRangeText.Text = $"5h: in {FormatResetCountdown(c.Primary.ResetsAt)} • 7d: {FormatResetDate(c.Secondary.ResetsAt)}";
+
+        // Spark (GPT-5.3-Codex-Spark) optional bars.
+        var hasSpark5h = c.SparkPrimary != null;
+        var hasSpark7d = c.SparkSecondary != null;
+        CodexSpark5hLabel.IsVisible = hasSpark5h;
+        CodexSparkPrimaryBar.IsVisible = hasSpark5h;
+        CodexSpark7dLabel.IsVisible = hasSpark7d;
+        CodexSparkSecondaryBar.IsVisible = hasSpark7d;
+
+        if (c.SparkPrimary is { } sp)
+        {
+            _codexSpark5hUsed = Math.Clamp(sp.UsedPercent, 0, 100);
+            _codexSpark5hExpected = sp.ExpectedPercent;
+            _codexSpark5hReset = sp.ResetsAt;
+            SetTargetBar(CodexSparkPrimaryBar, _codexSpark5hUsed.Value, _codexSpark5hExpected);
+        }
+        else
+        {
+            _codexSpark5hUsed = null;
+            _codexSpark5hExpected = null;
+            _codexSpark5hReset = null;
+        }
+
+        if (c.SparkSecondary is { } ss)
+        {
+            _codexSpark7dUsed = Math.Clamp(ss.UsedPercent, 0, 100);
+            _codexSpark7dExpected = ss.ExpectedPercent;
+            _codexSpark7dReset = ss.ResetsAt;
+            SetTargetBar(CodexSparkSecondaryBar, _codexSpark7dUsed.Value, _codexSpark7dExpected);
+        }
+        else
+        {
+            _codexSpark7dUsed = null;
+            _codexSpark7dExpected = null;
+            _codexSpark7dReset = null;
+        }
+
+        var range = $"5h: in {FormatResetCountdown(c.Primary.ResetsAt)} • 7d: {FormatResetDate(c.Secondary.ResetsAt)}";
+        if (hasSpark5h || hasSpark7d)
+        {
+            var sparkPct = _codexSpark5hUsed.HasValue && _codexSpark7dUsed.HasValue
+                ? $"{_codexSpark5hUsed.Value:F0}% / {_codexSpark7dUsed.Value:F0}%"
+                : _codexSpark5hUsed.HasValue
+                    ? $"{_codexSpark5hUsed.Value:F0}%"
+                    : $"{_codexSpark7dUsed!.Value:F0}%";
+            range += $" • Spark: {sparkPct}";
+        }
+        CodexRangeText.Text = range;
     }
 
     private void ApplyClaude(ClaudeBlock? c)
@@ -516,7 +589,28 @@ public partial class UsagePopup : Window
         SetTargetBar(ClaudeCodeSecondaryBar, _claude7dUsed, _claude7dExpected);
         _claude5hReset = c.FiveHour.ResetsAt;
         _claude7dReset = c.SevenDay.ResetsAt;
-        ClaudeCodeRangeText.Text = $"5h: in {FormatResetCountdown(c.FiveHour.ResetsAt)} • 7d: {FormatResetDate(c.SevenDay.ResetsAt)}";
+
+        var hasDesign = c.SevenDayDesign != null;
+        ClaudeDesignLabel.IsVisible = hasDesign;
+        ClaudeDesignBar.IsVisible = hasDesign;
+        if (c.SevenDayDesign is { } d)
+        {
+            _claudeDesignUsed = Math.Clamp(d.UsedPercent, 0, 100);
+            _claudeDesignExpected = d.ExpectedPercent;
+            _claudeDesignReset = d.ResetsAt;
+            SetTargetBar(ClaudeDesignBar, _claudeDesignUsed.Value, _claudeDesignExpected);
+        }
+        else
+        {
+            _claudeDesignUsed = null;
+            _claudeDesignExpected = null;
+            _claudeDesignReset = null;
+        }
+
+        var range = $"5h: in {FormatResetCountdown(c.FiveHour.ResetsAt)} • 7d: {FormatResetDate(c.SevenDay.ResetsAt)}";
+        if (_claudeDesignUsed.HasValue)
+            range += $" • Des: {_claudeDesignUsed.Value:F0}%";
+        ClaudeCodeRangeText.Text = range;
     }
 
     private void ApplyZai(ZaiBlock? z)
@@ -640,12 +734,35 @@ public partial class UsagePopup : Window
         CodexCompact5hReset.Text = _codex5hReset.HasValue ? $"in {FormatResetCountdown(_codex5hReset)}" : "";
         CodexCompact7dReset.Text = _codex7dReset.HasValue ? FormatResetDate(_codex7dReset) : "";
 
+        CodexCompactSpark5hRow.IsVisible = _codexSpark5hUsed.HasValue;
+        if (_codexSpark5hUsed.HasValue)
+        {
+            RenderCompactBar(CodexCompactSpark5hBar, CodexCompactSpark5hTick, Color.FromRgb(0x4D, 0xD0, 0xE1), _codexSpark5hUsed.Value, _codexSpark5hExpected, barWidth);
+            CodexCompactSpark5hPct.Text = $"{_codexSpark5hUsed.Value:F0}%";
+            CodexCompactSpark5hReset.Text = _codexSpark5hReset.HasValue ? $"in {FormatResetCountdown(_codexSpark5hReset)}" : "";
+        }
+        CodexCompactSpark7dRow.IsVisible = _codexSpark7dUsed.HasValue;
+        if (_codexSpark7dUsed.HasValue)
+        {
+            RenderCompactBar(CodexCompactSpark7dBar, CodexCompactSpark7dTick, Color.FromRgb(0x4D, 0xB6, 0xAC), _codexSpark7dUsed.Value, _codexSpark7dExpected, barWidth);
+            CodexCompactSpark7dPct.Text = $"{_codexSpark7dUsed.Value:F0}%";
+            CodexCompactSpark7dReset.Text = _codexSpark7dReset.HasValue ? FormatResetDate(_codexSpark7dReset) : "";
+        }
+
         RenderCompactBar(ClaudeCompact5hBar, ClaudeCompact5hTick, Color.FromRgb(0xFF, 0x8A, 0x65), _claude5hUsed, _claude5hExpected, barWidth);
         RenderCompactBar(ClaudeCompact7dBar, ClaudeCompact7dTick, Color.FromRgb(0xFF, 0xB7, 0x4D), _claude7dUsed, _claude7dExpected, barWidth);
         ClaudeCompact5hPct.Text = $"{_claude5hUsed:F0}%";
         ClaudeCompact7dPct.Text = $"{_claude7dUsed:F0}%";
         ClaudeCompact5hReset.Text = _claude5hReset.HasValue ? $"in {FormatResetCountdown(_claude5hReset)}" : "";
         ClaudeCompact7dReset.Text = _claude7dReset.HasValue ? FormatResetDate(_claude7dReset) : "";
+
+        ClaudeCompactDesignRow.IsVisible = _claudeDesignUsed.HasValue;
+        if (_claudeDesignUsed.HasValue)
+        {
+            RenderCompactBar(ClaudeCompactDesignBar, ClaudeCompactDesignTick, Color.FromRgb(0xF4, 0x8F, 0xB1), _claudeDesignUsed.Value, _claudeDesignExpected, barWidth);
+            ClaudeCompactDesignPct.Text = $"{_claudeDesignUsed.Value:F0}%";
+            ClaudeCompactDesignReset.Text = _claudeDesignReset.HasValue ? FormatResetDate(_claudeDesignReset) : "";
+        }
 
         RenderCompactBar(ZaiCompact5hBar, ZaiCompact5hTick, Color.FromRgb(0xBA, 0x68, 0xC8), _zai5hPercent ?? 0, _zai5hExpected, barWidth);
         RenderCompactBar(ZaiCompactMoBar, ZaiCompactMoTick, Color.FromRgb(0x7E, 0x57, 0xC2), _zaiMoPercent ?? 0, _zaiMoExpected, barWidth);
@@ -768,6 +885,7 @@ public partial class UsagePopup : Window
 
             var pos = point.Position;
             _isDragging = true;
+            _anchorBottomRight = null;
             var screenPos = this.PointToScreen(pos);
             _dragStartScreenPoint = new PixelPoint((int)screenPos.X, (int)screenPos.Y);
             _windowStartPosition = Position;

@@ -10,8 +10,8 @@ public record UsageWindow(
     DateTimeOffset? ResetsAt
 );
 
-public record ClaudeBlock(UsageWindow FiveHour, UsageWindow SevenDay, string? SubscriptionType);
-public record CodexBlock(UsageWindow Primary, UsageWindow Secondary, string? PlanType, string? CreditsBalance);
+public record ClaudeBlock(UsageWindow FiveHour, UsageWindow SevenDay, UsageWindow? SevenDayDesign, string? SubscriptionType);
+public record CodexBlock(UsageWindow Primary, UsageWindow Secondary, UsageWindow? SparkPrimary, UsageWindow? SparkSecondary, string? PlanType, string? CreditsBalance);
 public record ZaiBlock(UsageWindow? FiveHour, UsageWindow? Monthly, long? MonthlyCurrent, long? MonthlyLimit, string? Level);
 public record OpenRouterBlock(double Usage, double? Limit, double? LimitRemaining, bool? IsFreeTier);
 public record OpenAiBlock(double SpendToday, double SpendMonth, string Currency);
@@ -95,9 +95,15 @@ public class UsageApiService : IDisposable
         if (data.ValueKind != JsonValueKind.Object) return null;
         if (!data.TryGetProperty("five_hour", out var five) || !data.TryGetProperty("seven_day", out var seven))
             return null;
+
+        UsageWindow? design = null;
+        if (data.TryGetProperty("seven_day_design", out var des) && des.ValueKind == JsonValueKind.Object)
+            design = ParseWindow(des, "utilization");
+
         return new ClaudeBlock(
             ParseWindow(five, "utilization"),
             ParseWindow(seven, "utilization"),
+            design,
             ReadString(data, "subscription_type")
         );
     }
@@ -107,9 +113,32 @@ public class UsageApiService : IDisposable
         if (data.ValueKind != JsonValueKind.Object) return null;
         if (!data.TryGetProperty("primary", out var pri) || !data.TryGetProperty("secondary", out var sec))
             return null;
+
+        UsageWindow? sparkPri = null, sparkSec = null;
+        if (data.TryGetProperty("additional", out var add) && add.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var entry in add.EnumerateArray())
+            {
+                if (entry.ValueKind != JsonValueKind.Object) continue;
+                var name = ReadString(entry, "name") ?? "";
+                var feat = ReadString(entry, "metered_feature") ?? "";
+                if (!name.Contains("spark", StringComparison.OrdinalIgnoreCase) &&
+                    !feat.Equals("codex_bengalfox", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                if (entry.TryGetProperty("primary", out var ep) && ep.ValueKind == JsonValueKind.Object)
+                    sparkPri = ParseWindow(ep, "used_percent");
+                if (entry.TryGetProperty("secondary", out var es) && es.ValueKind == JsonValueKind.Object)
+                    sparkSec = ParseWindow(es, "used_percent");
+                break;
+            }
+        }
+
         return new CodexBlock(
             ParseWindow(pri, "used_percent"),
             ParseWindow(sec, "used_percent"),
+            sparkPri,
+            sparkSec,
             ReadString(data, "plan_type"),
             ReadString(data, "credits_balance")
         );
