@@ -40,9 +40,9 @@ public class UpdateChecker : IDisposable
         if (Interlocked.Exchange(ref _checkInFlight, 1) == 1) return;
         try
         {
-            await RunGitAsync("fetch", "origin", "master");
-            var sha = (await RunGitAsync("rev-parse", "--short", "origin/master")).Trim();
-            var dateStr = (await RunGitAsync("log", "-1", "--format=%cI", "origin/master")).Trim();
+            await RunGitAsync("fetch", "origin", "main");
+            var sha = (await RunGitAsync("rev-parse", "--short", "origin/main")).Trim();
+            var dateStr = (await RunGitAsync("log", "-1", "--format=%cI", "origin/main")).Trim();
             if (string.IsNullOrEmpty(sha)) return;
             if (!DateTimeOffset.TryParse(dateStr, out var remoteDate)) return;
 
@@ -78,7 +78,7 @@ public class UpdateChecker : IDisposable
         if (!Enabled) return false;
         try
         {
-            await RunGitAsync("pull", "--ff-only", "origin", "master");
+            await RunGitAsync("pull", "--ff-only", "origin", "main");
             await RunCommandAsync("dotnet", new[] { "build", "-c", "Debug" });
             return true;
         }

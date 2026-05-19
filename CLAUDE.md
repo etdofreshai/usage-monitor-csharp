@@ -55,7 +55,7 @@ Usage Monitor is a Windows system tray application that displays system resource
 
 - `BuildInfo.cs` is auto-generated at build time with git commit SHA and UTC build date
 - If `RepoPath` is set in config (or `USAGE_MONITOR_REPO` env var), the app checks for updates every 30 minutes
-- Update detection: `git fetch origin master`, compares remote SHA vs local, checks if remote is newer
+- Update detection: `git fetch origin main`, compares remote SHA vs local, checks if remote is newer
 - When update available: green ↻ button appears in Full and Compact views, green dot on Icon-Only view
 - Clicking update: pulls latest, builds, restarts the app
 - If `RepoPath` is null (default), auto-update is disabled
