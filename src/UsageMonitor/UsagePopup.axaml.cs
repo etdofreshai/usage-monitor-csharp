@@ -88,6 +88,9 @@ public partial class UsagePopup : Window
     // Single source of truth: the usage-api aggregator.
     private UsageApiService? _usageApiService;
 
+    // Auto-update checker
+    private UpdateChecker? _updateChecker;
+
     public UsagePopup()
     {
         InitializeComponent();
@@ -101,10 +104,13 @@ public partial class UsagePopup : Window
 
         // Wire up close button
         CloseButton.Click += (s, e) => HidePopup();
+        CloseCompactButton.Click += (s, e) => HidePopup();
         CompactButton.Click += (s, e) => SetViewMode(PopupViewMode.Compact);
         IconOnlyButton.Click += (s, e) => SetViewMode(PopupViewMode.IconOnly);
         RestoreFullButton.Click += (s, e) => SetViewMode(PopupViewMode.Full);
         RestoreIconButton.Click += (s, e) => SetViewMode(PopupViewMode.Full);
+        UpdateButton.Click += async (_, _) => await ApplyUpdateAsync();
+        UpdateButtonCompact.Click += async (_, _) => await ApplyUpdateAsync();
         // Enable dragging from title bar area (works in all modes including compact)
         PointerPressed += OnPointerPressed;
         PointerMoved += OnPointerMoved;
@@ -146,6 +152,20 @@ public partial class UsagePopup : Window
 
         // Initialize AI services
         InitializeAiServices();
+
+        // Show build info
+        BuildInfoText.Text = $"{BuildInfo.CommitSha} · {BuildInfo.BuildDate}";
+
+        // Initialize auto-update checker
+        _updateChecker = new UpdateChecker(_config.RepoPath);
+        _updateChecker.UpdateDetected += (s, e) => Dispatcher.UIThread.Post(() =>
+        {
+            UpdateButton.IsVisible = true;
+            UpdateButtonCompact.IsVisible = true;
+            IconOnlyUpdateDot.IsVisible = true;
+        });
+        _updateChecker.Start();
+
         SetViewMode(PopupViewMode.Compact);
 
         // Position near taskbar on first show only
@@ -306,8 +326,27 @@ public partial class UsagePopup : Window
     public void ForceClose()
     {
         _usageApiService?.Dispose();
+        _updateChecker?.Dispose();
         _allowClose = true;
         Close();
+    }
+
+    private async Task ApplyUpdateAsync()
+    {
+        if (_updateChecker == null || !_updateChecker.Enabled) return;
+        try
+        {
+            var success = await _updateChecker.ApplyUpdateAsync();
+            if (success)
+            {
+                UpdateChecker.RestartApp();
+                ForceClose();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Update apply failed: {ex.Message}");
+        }
     }
 
     private void PositionNearTaskbar(double? targetWidth = null, double? targetHeight = null)
@@ -880,7 +919,8 @@ public partial class UsagePopup : Window
                     return;
             }
 
-            if (CloseButton.IsPointerOver || CompactButton.IsPointerOver || IconOnlyButton.IsPointerOver || RestoreIconButton.IsPointerOver)
+            if (CloseButton.IsPointerOver || CompactButton.IsPointerOver || IconOnlyButton.IsPointerOver || RestoreIconButton.IsPointerOver
+                || CloseCompactButton.IsPointerOver || UpdateButton.IsPointerOver || UpdateButtonCompact.IsPointerOver)
                 return;
 
             var pos = point.Position;
