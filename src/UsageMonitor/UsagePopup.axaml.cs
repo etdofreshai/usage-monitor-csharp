@@ -111,6 +111,7 @@ public partial class UsagePopup : Window
         RestoreIconButton.Click += (s, e) => SetViewMode(PopupViewMode.Full);
         UpdateButton.Click += async (_, _) => await ApplyUpdateAsync();
         UpdateButtonCompact.Click += async (_, _) => await ApplyUpdateAsync();
+        MonitorTitleText.PointerPressed += (_, _) => OpenUsageDashboard();
         // Enable dragging from title bar area (works in all modes including compact)
         PointerPressed += OnPointerPressed;
         PointerMoved += OnPointerMoved;
@@ -212,6 +213,25 @@ public partial class UsagePopup : Window
         // returned data. NoKeysHint also flips off after the first successful response.
         NoKeysHint.IsVisible = false;
         ConfigPathText.Text = $"Source: {_config.UsageApiUrl}";
+    }
+
+    private void OpenUsageDashboard()
+    {
+        try
+        {
+            var url = string.IsNullOrWhiteSpace(_config.UsageApiUrl)
+                ? "https://usage.etdofresh.com"
+                : _config.UsageApiUrl.TrimEnd('/');
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = url,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to open usage dashboard: {ex.Message}");
+        }
     }
 
     private void RegisterTargetBar(Grid container, Border fill, Border tick, Color baseColor)
@@ -556,7 +576,7 @@ public partial class UsagePopup : Window
         if (c == null) return;
         var primary = Math.Clamp(c.Primary.UsedPercent, 0, 100);
         var secondary = Math.Clamp(c.Secondary.UsedPercent, 0, 100);
-        CodexCreditsText.Text = $"{primary:F0}% / {secondary:F0}% used";
+        CodexCreditsText.Text = $"{primary:F0}% ({FormatExpectedShort(c.Primary.ExpectedPercent)}) / {secondary:F0}% ({FormatExpectedShort(c.Secondary.ExpectedPercent)}) used";
         _codex5hUsed = primary;
         _codex7dUsed = secondary;
         _codex5hExpected = c.Primary.ExpectedPercent;
@@ -619,7 +639,7 @@ public partial class UsagePopup : Window
     {
         ClaudeCodeSection.IsVisible = c != null;
         if (c == null) return;
-        ClaudeCodeCreditsText.Text = $"{c.FiveHour.UsedPercent:F0}% / {c.SevenDay.UsedPercent:F0}% used";
+        ClaudeCodeCreditsText.Text = $"{c.FiveHour.UsedPercent:F0}% ({FormatExpectedShort(c.FiveHour.ExpectedPercent)}) / {c.SevenDay.UsedPercent:F0}% ({FormatExpectedShort(c.SevenDay.ExpectedPercent)}) used";
         _claude5hUsed = c.FiveHour.UsedPercent;
         _claude7dUsed = c.SevenDay.UsedPercent;
         _claude5hExpected = c.FiveHour.ExpectedPercent;
@@ -674,8 +694,8 @@ public partial class UsagePopup : Window
         ZaiDetailText.IsVisible = false;
 
         var headerParts = new List<string>();
-        if (_zai5hPercent.HasValue) headerParts.Add($"5h {_zai5hPercent.Value:F0}%");
-        if (_zaiMoPercent.HasValue) headerParts.Add($"Mo {_zaiMoPercent.Value:F0}%");
+        if (_zai5hPercent.HasValue) headerParts.Add($"5h {FormatUsedExpected(_zai5hPercent, _zai5hExpected)}");
+        if (_zaiMoPercent.HasValue) headerParts.Add($"Mo {FormatUsedExpected(_zaiMoPercent, _zaiMoExpected)}");
         ZaiCreditsText.Text = headerParts.Count > 0 ? string.Join(" • ", headerParts) + " used" : "Connected";
 
         var resetParts = new List<string>();
@@ -768,8 +788,8 @@ public partial class UsagePopup : Window
         const double barWidth = 62.0;
         RenderCompactBar(CodexCompact5hBar, CodexCompact5hTick, Color.FromRgb(0x8B, 0xC3, 0x4A), _codex5hUsed, _codex5hExpected, barWidth);
         RenderCompactBar(CodexCompact7dBar, CodexCompact7dTick, Color.FromRgb(0xB3, 0x9D, 0xDB), _codex7dUsed, _codex7dExpected, barWidth);
-        CodexCompact5hPct.Text = $"{_codex5hUsed:F0}%";
-        CodexCompact7dPct.Text = $"{_codex7dUsed:F0}%";
+        CodexCompact5hPct.Text = FormatUsedExpected(_codex5hUsed, _codex5hExpected);
+        CodexCompact7dPct.Text = FormatUsedExpected(_codex7dUsed, _codex7dExpected);
         CodexCompact5hReset.Text = _codex5hReset.HasValue ? $"in {FormatResetCountdown(_codex5hReset)}" : "";
         CodexCompact7dReset.Text = _codex7dReset.HasValue ? FormatResetDate(_codex7dReset) : "";
 
@@ -777,21 +797,21 @@ public partial class UsagePopup : Window
         if (_codexSpark5hUsed.HasValue)
         {
             RenderCompactBar(CodexCompactSpark5hBar, CodexCompactSpark5hTick, Color.FromRgb(0x4D, 0xD0, 0xE1), _codexSpark5hUsed.Value, _codexSpark5hExpected, barWidth);
-            CodexCompactSpark5hPct.Text = $"{_codexSpark5hUsed.Value:F0}%";
+            CodexCompactSpark5hPct.Text = FormatUsedExpected(_codexSpark5hUsed, _codexSpark5hExpected);
             CodexCompactSpark5hReset.Text = _codexSpark5hReset.HasValue ? $"in {FormatResetCountdown(_codexSpark5hReset)}" : "";
         }
         CodexCompactSpark7dRow.IsVisible = _codexSpark7dUsed.HasValue;
         if (_codexSpark7dUsed.HasValue)
         {
             RenderCompactBar(CodexCompactSpark7dBar, CodexCompactSpark7dTick, Color.FromRgb(0x4D, 0xB6, 0xAC), _codexSpark7dUsed.Value, _codexSpark7dExpected, barWidth);
-            CodexCompactSpark7dPct.Text = $"{_codexSpark7dUsed.Value:F0}%";
+            CodexCompactSpark7dPct.Text = FormatUsedExpected(_codexSpark7dUsed, _codexSpark7dExpected);
             CodexCompactSpark7dReset.Text = _codexSpark7dReset.HasValue ? FormatResetDate(_codexSpark7dReset) : "";
         }
 
         RenderCompactBar(ClaudeCompact5hBar, ClaudeCompact5hTick, Color.FromRgb(0xFF, 0x8A, 0x65), _claude5hUsed, _claude5hExpected, barWidth);
         RenderCompactBar(ClaudeCompact7dBar, ClaudeCompact7dTick, Color.FromRgb(0xFF, 0xB7, 0x4D), _claude7dUsed, _claude7dExpected, barWidth);
-        ClaudeCompact5hPct.Text = $"{_claude5hUsed:F0}%";
-        ClaudeCompact7dPct.Text = $"{_claude7dUsed:F0}%";
+        ClaudeCompact5hPct.Text = FormatUsedExpected(_claude5hUsed, _claude5hExpected);
+        ClaudeCompact7dPct.Text = FormatUsedExpected(_claude7dUsed, _claude7dExpected);
         ClaudeCompact5hReset.Text = _claude5hReset.HasValue ? $"in {FormatResetCountdown(_claude5hReset)}" : "";
         ClaudeCompact7dReset.Text = _claude7dReset.HasValue ? FormatResetDate(_claude7dReset) : "";
 
@@ -799,16 +819,29 @@ public partial class UsagePopup : Window
         if (_claudeDesignUsed.HasValue)
         {
             RenderCompactBar(ClaudeCompactDesignBar, ClaudeCompactDesignTick, Color.FromRgb(0xF4, 0x8F, 0xB1), _claudeDesignUsed.Value, _claudeDesignExpected, barWidth);
-            ClaudeCompactDesignPct.Text = $"{_claudeDesignUsed.Value:F0}%";
+            ClaudeCompactDesignPct.Text = FormatUsedExpected(_claudeDesignUsed, _claudeDesignExpected);
             ClaudeCompactDesignReset.Text = _claudeDesignReset.HasValue ? FormatResetDate(_claudeDesignReset) : "";
         }
 
         RenderCompactBar(ZaiCompact5hBar, ZaiCompact5hTick, Color.FromRgb(0xBA, 0x68, 0xC8), _zai5hPercent ?? 0, _zai5hExpected, barWidth);
         RenderCompactBar(ZaiCompactMoBar, ZaiCompactMoTick, Color.FromRgb(0x7E, 0x57, 0xC2), _zaiMoPercent ?? 0, _zaiMoExpected, barWidth);
-        ZaiCompact5hPct.Text = _zai5hPercent.HasValue ? $"{_zai5hPercent.Value:F0}%" : "—";
-        ZaiCompactMoPct.Text = _zaiMoPercent.HasValue ? $"{_zaiMoPercent.Value:F0}%" : "—";
+        ZaiCompact5hPct.Text = FormatUsedExpected(_zai5hPercent, _zai5hExpected);
+        ZaiCompactMoPct.Text = FormatUsedExpected(_zaiMoPercent, _zaiMoExpected);
         ZaiCompact5hReset.Text = _zai5hReset.HasValue ? $"in {FormatResetCountdown(_zai5hReset)}" : "";
         ZaiCompactMoReset.Text = _zaiMoReset.HasValue ? FormatResetDate(_zaiMoReset) : "";
+    }
+
+    private static string FormatUsedExpected(double? used, double? expected)
+    {
+        if (!used.HasValue) return "—";
+        return expected.HasValue
+            ? $"{used.Value:F0}% e{expected.Value:F0}%"
+            : $"{used.Value:F0}%";
+    }
+
+    private static string FormatExpectedShort(double? expected)
+    {
+        return expected.HasValue ? $"e{expected.Value:F0}%" : "e—";
     }
 
     private static string FormatResetCountdown(DateTimeOffset? resetAt)
