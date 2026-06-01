@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Documents;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
@@ -576,7 +577,7 @@ public partial class UsagePopup : Window
         if (c == null) return;
         var primary = Math.Clamp(c.Primary.UsedPercent, 0, 100);
         var secondary = Math.Clamp(c.Secondary.UsedPercent, 0, 100);
-        CodexCreditsText.Text = $"{primary:F0}% ({FormatExpectedShort(c.Primary.ExpectedPercent)}) / {secondary:F0}% ({FormatExpectedShort(c.Secondary.ExpectedPercent)}) used";
+        SetTwoUsedExpectedInlines(CodexCreditsText, primary, c.Primary.ExpectedPercent, secondary, c.Secondary.ExpectedPercent);
         _codex5hUsed = primary;
         _codex7dUsed = secondary;
         _codex5hExpected = c.Primary.ExpectedPercent;
@@ -639,7 +640,7 @@ public partial class UsagePopup : Window
     {
         ClaudeCodeSection.IsVisible = c != null;
         if (c == null) return;
-        ClaudeCodeCreditsText.Text = $"{c.FiveHour.UsedPercent:F0}% ({FormatExpectedShort(c.FiveHour.ExpectedPercent)}) / {c.SevenDay.UsedPercent:F0}% ({FormatExpectedShort(c.SevenDay.ExpectedPercent)}) used";
+        SetTwoUsedExpectedInlines(ClaudeCodeCreditsText, c.FiveHour.UsedPercent, c.FiveHour.ExpectedPercent, c.SevenDay.UsedPercent, c.SevenDay.ExpectedPercent);
         _claude5hUsed = c.FiveHour.UsedPercent;
         _claude7dUsed = c.SevenDay.UsedPercent;
         _claude5hExpected = c.FiveHour.ExpectedPercent;
@@ -693,10 +694,25 @@ public partial class UsagePopup : Window
             SetTargetBar(ZaiMonthlyBar, z.Monthly.UsedPercent, _zaiMoExpected);
         ZaiDetailText.IsVisible = false;
 
-        var headerParts = new List<string>();
-        if (_zai5hPercent.HasValue) headerParts.Add($"5h {FormatUsedExpected(_zai5hPercent, _zai5hExpected)}");
-        if (_zaiMoPercent.HasValue) headerParts.Add($"Mo {FormatUsedExpected(_zaiMoPercent, _zaiMoExpected)}");
-        ZaiCreditsText.Text = headerParts.Count > 0 ? string.Join(" • ", headerParts) + " used" : "Connected";
+        ZaiCreditsText.Inlines!.Clear();
+        bool zaiAnyHeader = false;
+        if (_zai5hPercent.HasValue)
+        {
+            ZaiCreditsText.Inlines.Add(new Run($"5h {_zai5hPercent.Value:F0}%"));
+            if (_zai5hExpected.HasValue)
+                ZaiCreditsText.Inlines.Add(ExpectedRun($" {_zai5hExpected.Value:F0}%", ZaiCreditsText.FontSize, _zai5hPercent.Value, _zai5hExpected));
+            zaiAnyHeader = true;
+        }
+        if (_zaiMoPercent.HasValue)
+        {
+            if (zaiAnyHeader) ZaiCreditsText.Inlines.Add(new Run(" • "));
+            ZaiCreditsText.Inlines.Add(new Run($"Mo {_zaiMoPercent.Value:F0}%"));
+            if (_zaiMoExpected.HasValue)
+                ZaiCreditsText.Inlines.Add(ExpectedRun($" {_zaiMoExpected.Value:F0}%", ZaiCreditsText.FontSize, _zaiMoPercent.Value, _zaiMoExpected));
+            zaiAnyHeader = true;
+        }
+        if (!zaiAnyHeader) ZaiCreditsText.Inlines.Add(new Run("Connected"));
+        else ZaiCreditsText.Inlines.Add(new Run(" used"));
 
         var resetParts = new List<string>();
         if (_zai5hReset.HasValue) resetParts.Add($"5h: in {FormatResetCountdown(_zai5hReset)}");
@@ -788,8 +804,8 @@ public partial class UsagePopup : Window
         const double barWidth = 62.0;
         RenderCompactBar(CodexCompact5hBar, CodexCompact5hTick, Color.FromRgb(0x8B, 0xC3, 0x4A), _codex5hUsed, _codex5hExpected, barWidth);
         RenderCompactBar(CodexCompact7dBar, CodexCompact7dTick, Color.FromRgb(0xB3, 0x9D, 0xDB), _codex7dUsed, _codex7dExpected, barWidth);
-        CodexCompact5hPct.Text = FormatUsedExpected(_codex5hUsed, _codex5hExpected);
-        CodexCompact7dPct.Text = FormatUsedExpected(_codex7dUsed, _codex7dExpected);
+        SetUsedExpectedInlines(CodexCompact5hPct, _codex5hUsed, _codex5hExpected);
+        SetUsedExpectedInlines(CodexCompact7dPct, _codex7dUsed, _codex7dExpected);
         CodexCompact5hReset.Text = _codex5hReset.HasValue ? $"in {FormatResetCountdown(_codex5hReset)}" : "";
         CodexCompact7dReset.Text = _codex7dReset.HasValue ? FormatResetDate(_codex7dReset) : "";
 
@@ -797,21 +813,21 @@ public partial class UsagePopup : Window
         if (_codexSpark5hUsed.HasValue)
         {
             RenderCompactBar(CodexCompactSpark5hBar, CodexCompactSpark5hTick, Color.FromRgb(0x4D, 0xD0, 0xE1), _codexSpark5hUsed.Value, _codexSpark5hExpected, barWidth);
-            CodexCompactSpark5hPct.Text = FormatUsedExpected(_codexSpark5hUsed, _codexSpark5hExpected);
+            SetUsedExpectedInlines(CodexCompactSpark5hPct, _codexSpark5hUsed, _codexSpark5hExpected);
             CodexCompactSpark5hReset.Text = _codexSpark5hReset.HasValue ? $"in {FormatResetCountdown(_codexSpark5hReset)}" : "";
         }
         CodexCompactSpark7dRow.IsVisible = _codexSpark7dUsed.HasValue;
         if (_codexSpark7dUsed.HasValue)
         {
             RenderCompactBar(CodexCompactSpark7dBar, CodexCompactSpark7dTick, Color.FromRgb(0x4D, 0xB6, 0xAC), _codexSpark7dUsed.Value, _codexSpark7dExpected, barWidth);
-            CodexCompactSpark7dPct.Text = FormatUsedExpected(_codexSpark7dUsed, _codexSpark7dExpected);
+            SetUsedExpectedInlines(CodexCompactSpark7dPct, _codexSpark7dUsed, _codexSpark7dExpected);
             CodexCompactSpark7dReset.Text = _codexSpark7dReset.HasValue ? FormatResetDate(_codexSpark7dReset) : "";
         }
 
         RenderCompactBar(ClaudeCompact5hBar, ClaudeCompact5hTick, Color.FromRgb(0xFF, 0x8A, 0x65), _claude5hUsed, _claude5hExpected, barWidth);
         RenderCompactBar(ClaudeCompact7dBar, ClaudeCompact7dTick, Color.FromRgb(0xFF, 0xB7, 0x4D), _claude7dUsed, _claude7dExpected, barWidth);
-        ClaudeCompact5hPct.Text = FormatUsedExpected(_claude5hUsed, _claude5hExpected);
-        ClaudeCompact7dPct.Text = FormatUsedExpected(_claude7dUsed, _claude7dExpected);
+        SetUsedExpectedInlines(ClaudeCompact5hPct, _claude5hUsed, _claude5hExpected);
+        SetUsedExpectedInlines(ClaudeCompact7dPct, _claude7dUsed, _claude7dExpected);
         ClaudeCompact5hReset.Text = _claude5hReset.HasValue ? $"in {FormatResetCountdown(_claude5hReset)}" : "";
         ClaudeCompact7dReset.Text = _claude7dReset.HasValue ? FormatResetDate(_claude7dReset) : "";
 
@@ -819,14 +835,14 @@ public partial class UsagePopup : Window
         if (_claudeDesignUsed.HasValue)
         {
             RenderCompactBar(ClaudeCompactDesignBar, ClaudeCompactDesignTick, Color.FromRgb(0xF4, 0x8F, 0xB1), _claudeDesignUsed.Value, _claudeDesignExpected, barWidth);
-            ClaudeCompactDesignPct.Text = FormatUsedExpected(_claudeDesignUsed, _claudeDesignExpected);
+            SetUsedExpectedInlines(ClaudeCompactDesignPct, _claudeDesignUsed, _claudeDesignExpected);
             ClaudeCompactDesignReset.Text = _claudeDesignReset.HasValue ? FormatResetDate(_claudeDesignReset) : "";
         }
 
         RenderCompactBar(ZaiCompact5hBar, ZaiCompact5hTick, Color.FromRgb(0xBA, 0x68, 0xC8), _zai5hPercent ?? 0, _zai5hExpected, barWidth);
         RenderCompactBar(ZaiCompactMoBar, ZaiCompactMoTick, Color.FromRgb(0x7E, 0x57, 0xC2), _zaiMoPercent ?? 0, _zaiMoExpected, barWidth);
-        ZaiCompact5hPct.Text = FormatUsedExpected(_zai5hPercent, _zai5hExpected);
-        ZaiCompactMoPct.Text = FormatUsedExpected(_zaiMoPercent, _zaiMoExpected);
+        SetUsedExpectedInlines(ZaiCompact5hPct, _zai5hPercent, _zai5hExpected);
+        SetUsedExpectedInlines(ZaiCompactMoPct, _zaiMoPercent, _zaiMoExpected);
         ZaiCompact5hReset.Text = _zai5hReset.HasValue ? $"in {FormatResetCountdown(_zai5hReset)}" : "";
         ZaiCompactMoReset.Text = _zaiMoReset.HasValue ? FormatResetDate(_zaiMoReset) : "";
     }
@@ -835,13 +851,59 @@ public partial class UsagePopup : Window
     {
         if (!used.HasValue) return "—";
         return expected.HasValue
-            ? $"{used.Value:F0}% e{expected.Value:F0}%"
+            ? $"{used.Value:F0}% {expected.Value:F0}%"
             : $"{used.Value:F0}%";
     }
 
     private static string FormatExpectedShort(double? expected)
     {
-        return expected.HasValue ? $"e{expected.Value:F0}%" : "e—";
+        return expected.HasValue ? $"{expected.Value:F0}%" : "—";
+    }
+
+    private static Color ExpectedTint(double used, double? expected)
+    {
+        if (expected is not double exp || used <= exp) return Color.FromRgb(0xC8, 0xE6, 0xC9); // light green
+        var headroom = Math.Max(1.0, 100.0 - exp);
+        var t = Math.Clamp((used - exp) / headroom, 0, 1);
+        if (t <= 0.33) return Color.FromRgb(0xFF, 0xF5, 0x9D); // light yellow
+        if (t <= 0.66) return Color.FromRgb(0xFF, 0xCC, 0x80); // light orange
+        return Color.FromRgb(0xEF, 0x9A, 0x9A);                 // light red
+    }
+
+    private static Run ExpectedRun(string text, double baseFontSize, double used, double? expected)
+    {
+        return new Run(text)
+        {
+            Foreground = new SolidColorBrush(ExpectedTint(used, expected)),
+            FontSize = Math.Max(6, baseFontSize - 2),
+        };
+    }
+
+    private static void SetUsedExpectedInlines(TextBlock tb, double? used, double? expected)
+    {
+        tb.Inlines!.Clear();
+        if (!used.HasValue)
+        {
+            tb.Inlines.Add(new Run("—"));
+            return;
+        }
+        tb.Inlines.Add(new Run($"{used.Value:F0}%"));
+        if (expected.HasValue)
+        {
+            tb.Inlines.Add(ExpectedRun($" {expected.Value:F0}%", tb.FontSize, used.Value, expected));
+        }
+    }
+
+    private static void SetTwoUsedExpectedInlines(TextBlock tb, double a, double? aExp, double b, double? bExp)
+    {
+        tb.Inlines!.Clear();
+        tb.Inlines.Add(new Run($"{a:F0}%"));
+        if (aExp.HasValue)
+            tb.Inlines.Add(ExpectedRun($" ({aExp.Value:F0}%)", tb.FontSize, a, aExp));
+        tb.Inlines.Add(new Run($" / {b:F0}%"));
+        if (bExp.HasValue)
+            tb.Inlines.Add(ExpectedRun($" ({bExp.Value:F0}%)", tb.FontSize, b, bExp));
+        tb.Inlines.Add(new Run(" used"));
     }
 
     private static string FormatResetCountdown(DateTimeOffset? resetAt)
