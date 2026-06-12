@@ -26,6 +26,11 @@ public class Config
     // fast is cheap on its end.
     public int RefreshIntervalSeconds { get; set; } = 5;
 
+    // Second Claude account. Renders only when the server exposes providers.claude2
+    // AND this flag is true — default true so enabling it server-side lights it up;
+    // set false per machine to opt out.
+    public bool ShowClaude2 { get; set; } = true;
+
     // Path to the local git checkout used for auto-update. null disables update checks.
     public string? RepoPath { get; set; }
 
@@ -64,6 +69,17 @@ public class Config
         var repo = Environment.GetEnvironmentVariable("USAGE_MONITOR_REPO");
         if (!string.IsNullOrEmpty(repo))
             config.RepoPath = repo;
+
+        var showClaude2 = Environment.GetEnvironmentVariable("USAGE_MONITOR_SHOW_CLAUDE2");
+        switch (showClaude2?.Trim().ToLowerInvariant())
+        {
+            case "1" or "true" or "yes" or "on":
+                config.ShowClaude2 = true;
+                break;
+            case "0" or "false" or "no" or "off":
+                config.ShowClaude2 = false;
+                break;
+        }
     }
 
     public void Save()

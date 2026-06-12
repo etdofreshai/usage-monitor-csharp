@@ -28,7 +28,7 @@ Usage Monitor is a Windows system tray application that displays system resource
 
 - **UsagePopup** - Borderless, topmost, transparent window that floats above all other windows. Positioned near the taskbar. Two sections: System stats (CPU, memory, disk, network, uptime) and AI Credits (OpenRouter, OpenAI, Anthropic, Z.ai). Has an X button to close/hide and supports dragging from the title bar.
 
-- **Config** - JSON configuration stored in `%AppData%\UsageMonitor\config.json`. API keys can also come from environment variables (`OPENAI_ADMIN_KEY`, `OPENROUTER_API_KEY`, `ANTHROPIC_ADMIN_KEY`, `ZAI_API_KEY`).
+- **Config** - JSON configuration stored in `%AppData%\UsageMonitor\config.json`. API keys can also come from environment variables (`OPENAI_ADMIN_KEY`, `OPENROUTER_API_KEY`, `ANTHROPIC_ADMIN_KEY`, `ZAI_API_KEY`). `ShowClaude2` (default `true`, env override `USAGE_MONITOR_SHOW_CLAUDE2` with 1/true/yes/on or 0/false/no/off) AND-gates the second Claude account: it renders only when the server's `/api/usage` response includes a `providers.claude2` block AND this flag is true — server-side is the opt-in, this flag is a per-machine opt-out.
 
 ### AI Service Clients (`Services/`)
 

@@ -19,6 +19,7 @@ public record OpenAiBlock(double SpendToday, double SpendMonth, string Currency)
 public record UsageApiStatus(
     DateTimeOffset Timestamp,
     ClaudeBlock? Claude,
+    ClaudeBlock? Claude2,
     CodexBlock? Codex,
     ZaiBlock? Zai,
     OpenRouterBlock? OpenRouter,
@@ -57,6 +58,7 @@ public class UsageApiService : IDisposable
             return new UsageApiStatus(
                 ts,
                 ParseClaude(GetData(providers, "claude")),
+                ParseClaude(GetData(providers, "claude2")),
                 ParseCodex(GetData(providers, "codex")),
                 ParseZai(GetData(providers, "zai")),
                 ParseOpenRouter(GetData(providers, "openrouter")),
