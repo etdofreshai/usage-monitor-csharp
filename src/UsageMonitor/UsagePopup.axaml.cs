@@ -97,6 +97,24 @@ public partial class UsagePopup : Window
     // Auto-update checker
     private UpdateChecker? _updateChecker;
 
+    // Last successful usage snapshot, retained so provider show/hide toggles can
+    // re-render visibility immediately without waiting for the next poll.
+    private UsageApiStatus? _lastStatus;
+
+    // Provider visibility toggles surfaced (in this order) in the tray "Providers" menu.
+    public enum ProviderToggle { Codex, CodexSpark, Claude, Claude2, ClaudeDesign, Claude2Design, Zai }
+
+    public static readonly IReadOnlyList<(ProviderToggle Key, string Label)> ProviderToggles = new[]
+    {
+        (ProviderToggle.Codex, "Codex"),
+        (ProviderToggle.CodexSpark, "Codex Spark"),
+        (ProviderToggle.Claude, "Claude"),
+        (ProviderToggle.Claude2, "Claude2"),
+        (ProviderToggle.ClaudeDesign, "Claude Design"),
+        (ProviderToggle.Claude2Design, "Claude2 Design"),
+        (ProviderToggle.Zai, "Z.ai"),
+    };
+
     public UsagePopup()
     {
         InitializeComponent();
@@ -548,6 +566,7 @@ public partial class UsagePopup : Window
         if (_usageApiService == null) return;
         var status = await _usageApiService.GetStatusAsync();
         if (status == null) return;
+        _lastStatus = status;
 
         Dispatcher.UIThread.Post(() =>
         {
@@ -557,8 +576,88 @@ public partial class UsagePopup : Window
             ApplyClaude(status.Claude);
             ApplyClaude2(status.Claude2);
             ApplyZai(status.Zai);
+            ReflowAiGrid();
             UpdateCompactSummary();
         });
+    }
+
+    public bool IsProviderVisible(ProviderToggle toggle) => toggle switch
+    {
+        ProviderToggle.Codex => _config.ShowCodex,
+        ProviderToggle.CodexSpark => _config.ShowCodexSpark,
+        ProviderToggle.Claude => _config.ShowClaude,
+        ProviderToggle.Claude2 => _config.ShowClaude2,
+        ProviderToggle.ClaudeDesign => _config.ShowClaudeDesign,
+        ProviderToggle.Claude2Design => _config.ShowClaude2Design,
+        ProviderToggle.Zai => _config.ShowZai,
+        _ => true,
+    };
+
+    public void SetProviderVisible(ProviderToggle toggle, bool visible)
+    {
+        switch (toggle)
+        {
+            case ProviderToggle.Codex: _config.ShowCodex = visible; break;
+            case ProviderToggle.CodexSpark: _config.ShowCodexSpark = visible; break;
+            case ProviderToggle.Claude: _config.ShowClaude = visible; break;
+            case ProviderToggle.Claude2: _config.ShowClaude2 = visible; break;
+            case ProviderToggle.ClaudeDesign: _config.ShowClaudeDesign = visible; break;
+            case ProviderToggle.Claude2Design: _config.ShowClaude2Design = visible; break;
+            case ProviderToggle.Zai: _config.ShowZai = visible; break;
+        }
+        _config.Save();
+        ReapplyProviderVisibility();
+    }
+
+    // Re-render section/bar visibility against the last snapshot so a menu toggle takes
+    // effect immediately, even between polls. Safe to call from any thread.
+    private void ReapplyProviderVisibility()
+    {
+        void Apply()
+        {
+            ApplyCodex(_lastStatus?.Codex);
+            ApplyClaude(_lastStatus?.Claude);
+            ApplyClaude2(_lastStatus?.Claude2);
+            ApplyZai(_lastStatus?.Zai);
+            ReflowAiGrid();
+            UpdateCompactSummary();
+        }
+
+        if (Dispatcher.UIThread.CheckAccess())
+            Apply();
+        else
+            Dispatcher.UIThread.Post(Apply);
+    }
+
+    // The full-view AI cards live in a fixed 2-column grid. Repack the *visible* cards
+    // top-left (and recompute their gutter margins) so hiding any subset never leaves an
+    // interior hole. With all cards visible this reproduces the original cell layout.
+    private void ReflowAiGrid()
+    {
+        Control[] sections =
+        {
+            OpenRouterSection,
+            CodexSection,
+            ClaudeCodeSection,
+            ZaiSection,
+            ClaudeCode2Section,
+        };
+
+        var slot = 0;
+        foreach (var section in sections)
+        {
+            if (!section.IsVisible) continue;
+            var row = slot / 2;
+            var col = slot % 2;
+            Grid.SetRow(section, row);
+            Grid.SetColumn(section, col);
+            section.Margin = new Thickness(
+                col == 1 ? 3 : 0,   // left gutter for the right column
+                row == 0 ? 0 : 3,   // top gap below the first row
+                col == 0 ? 3 : 0,   // right gutter for the left column
+                0);
+            slot++;
+        }
     }
 
     private void ApplyOpenRouter(OpenRouterBlock? r)
@@ -582,8 +681,9 @@ public partial class UsagePopup : Window
 
     private void ApplyCodex(CodexBlock? c)
     {
-        CodexSection.IsVisible = c != null;
-        if (c == null) return;
+        var show = c != null && _config.ShowCodex;
+        CodexSection.IsVisible = show;
+        if (!show || c == null) return;
         var primary = Math.Clamp(c.Primary.UsedPercent, 0, 100);
         var secondary = Math.Clamp(c.Secondary.UsedPercent, 0, 100);
         SetTwoUsedExpectedInlines(CodexCreditsText, primary, c.Primary.ExpectedPercent, secondary, c.Secondary.ExpectedPercent);
@@ -596,15 +696,15 @@ public partial class UsagePopup : Window
         _codex5hReset = c.Primary.ResetsAt;
         _codex7dReset = c.Secondary.ResetsAt;
 
-        // Spark (GPT-5.3-Codex-Spark) optional bars.
-        var hasSpark5h = c.SparkPrimary != null;
-        var hasSpark7d = c.SparkSecondary != null;
-        CodexSpark5hLabel.IsVisible = hasSpark5h;
-        CodexSparkPrimaryBar.IsVisible = hasSpark5h;
-        CodexSpark7dLabel.IsVisible = hasSpark7d;
-        CodexSparkSecondaryBar.IsVisible = hasSpark7d;
+        // Spark (GPT-5.3-Codex-Spark) optional bars, gated by the Codex Spark toggle.
+        var showSpark5h = c.SparkPrimary != null && _config.ShowCodexSpark;
+        var showSpark7d = c.SparkSecondary != null && _config.ShowCodexSpark;
+        CodexSpark5hLabel.IsVisible = showSpark5h;
+        CodexSparkPrimaryBar.IsVisible = showSpark5h;
+        CodexSpark7dLabel.IsVisible = showSpark7d;
+        CodexSparkSecondaryBar.IsVisible = showSpark7d;
 
-        if (c.SparkPrimary is { } sp)
+        if (showSpark5h && c.SparkPrimary is { } sp)
         {
             _codexSpark5hUsed = Math.Clamp(sp.UsedPercent, 0, 100);
             _codexSpark5hExpected = sp.ExpectedPercent;
@@ -618,7 +718,7 @@ public partial class UsagePopup : Window
             _codexSpark5hReset = null;
         }
 
-        if (c.SparkSecondary is { } ss)
+        if (showSpark7d && c.SparkSecondary is { } ss)
         {
             _codexSpark7dUsed = Math.Clamp(ss.UsedPercent, 0, 100);
             _codexSpark7dExpected = ss.ExpectedPercent;
@@ -633,7 +733,7 @@ public partial class UsagePopup : Window
         }
 
         var range = $"5h: in {FormatResetCountdown(c.Primary.ResetsAt)} • 7d: {FormatResetDate(c.Secondary.ResetsAt)}";
-        if (hasSpark5h || hasSpark7d)
+        if (showSpark5h || showSpark7d)
         {
             var sparkPct = _codexSpark5hUsed.HasValue && _codexSpark7dUsed.HasValue
                 ? $"{_codexSpark5hUsed.Value:F0}% / {_codexSpark7dUsed.Value:F0}%"
@@ -647,8 +747,9 @@ public partial class UsagePopup : Window
 
     private void ApplyClaude(ClaudeBlock? c)
     {
-        ClaudeCodeSection.IsVisible = c != null;
-        if (c == null) return;
+        var show = c != null && _config.ShowClaude;
+        ClaudeCodeSection.IsVisible = show;
+        if (!show || c == null) return;
         SetTwoUsedExpectedInlines(ClaudeCodeCreditsText, c.FiveHour.UsedPercent, c.FiveHour.ExpectedPercent, c.SevenDay.UsedPercent, c.SevenDay.ExpectedPercent);
         _claude5hUsed = c.FiveHour.UsedPercent;
         _claude7dUsed = c.SevenDay.UsedPercent;
@@ -659,10 +760,10 @@ public partial class UsagePopup : Window
         _claude5hReset = c.FiveHour.ResetsAt;
         _claude7dReset = c.SevenDay.ResetsAt;
 
-        var hasDesign = c.SevenDayDesign != null;
-        ClaudeDesignLabel.IsVisible = hasDesign;
-        ClaudeDesignBar.IsVisible = hasDesign;
-        if (c.SevenDayDesign is { } d)
+        var showDesign = c.SevenDayDesign != null && _config.ShowClaudeDesign;
+        ClaudeDesignLabel.IsVisible = showDesign;
+        ClaudeDesignBar.IsVisible = showDesign;
+        if (showDesign && c.SevenDayDesign is { } d)
         {
             _claudeDesignUsed = Math.Clamp(d.UsedPercent, 0, 100);
             _claudeDesignExpected = d.ExpectedPercent;
@@ -714,10 +815,10 @@ public partial class UsagePopup : Window
         _claude2FiveHourReset = c.FiveHour.ResetsAt;
         _claude2SevenDayReset = c.SevenDay.ResetsAt;
 
-        var hasDesign = c.SevenDayDesign != null;
-        ClaudeDesign2Label.IsVisible = hasDesign;
-        ClaudeDesign2Bar.IsVisible = hasDesign;
-        if (c.SevenDayDesign is { } d)
+        var showDesign = c.SevenDayDesign != null && _config.ShowClaude2Design;
+        ClaudeDesign2Label.IsVisible = showDesign;
+        ClaudeDesign2Bar.IsVisible = showDesign;
+        if (showDesign && c.SevenDayDesign is { } d)
         {
             _claude2DesignUsed = Math.Clamp(d.UsedPercent, 0, 100);
             _claude2DesignExpected = d.ExpectedPercent;
@@ -739,8 +840,9 @@ public partial class UsagePopup : Window
 
     private void ApplyZai(ZaiBlock? z)
     {
-        ZaiSection.IsVisible = z != null;
-        if (z == null) return;
+        var show = z != null && _config.ShowZai;
+        ZaiSection.IsVisible = show;
+        if (!show || z == null) return;
 
         _zai5hPercent = z.FiveHour?.UsedPercent;
         _zai5hReset = z.FiveHour?.ResetsAt;

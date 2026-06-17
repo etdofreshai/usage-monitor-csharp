@@ -88,6 +88,28 @@ public partial class App : Application
                 trayMenu.Items.Add(new NativeMenuItemSeparator());
             }
 
+            // Provider show/hide toggles, directly in the menu under a "Providers" header.
+            // The popup owns the config; these items just read/flip its state and the popup
+            // re-renders live. Checkmarks reflect the persisted per-provider flags.
+            trayMenu.Items.Add(new NativeMenuItem("Providers") { IsEnabled = false });
+            foreach (var (key, label) in UsagePopup.ProviderToggles)
+            {
+                var toggleKey = key;
+                var providerItem = new NativeMenuItem(label)
+                {
+                    ToggleType = NativeMenuItemToggleType.CheckBox,
+                    IsChecked = _popup.IsProviderVisible(toggleKey),
+                };
+                providerItem.Click += (s, e) => Dispatcher.UIThread.Post(() =>
+                {
+                    _popup.SetProviderVisible(toggleKey, !_popup.IsProviderVisible(toggleKey));
+                    providerItem.IsChecked = _popup.IsProviderVisible(toggleKey);
+                });
+                trayMenu.Items.Add(providerItem);
+            }
+
+            trayMenu.Items.Add(new NativeMenuItemSeparator());
+
             var quitItem = new NativeMenuItem("Quit");
             quitItem.Click += (s, e) =>
             {

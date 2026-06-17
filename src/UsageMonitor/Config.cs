@@ -1,9 +1,15 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace UsageMonitor;
 
 public class Config
 {
+    // Property names whose live value came from an environment override this run. These
+    // are NOT written to config.json, so removing the env var later reverts to the user's
+    // real on-disk preference instead of the override becoming sticky. Private = not serialized.
+    private readonly HashSet<string> _envOverridden = new();
+
     private static string GetConfigDirectory()
     {
         var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
@@ -30,6 +36,16 @@ public class Config
     // AND this flag is true — default true so enabling it server-side lights it up;
     // set false per machine to opt out.
     public bool ShowClaude2 { get; set; } = true;
+
+    // Per-provider visibility, toggled live from the tray "Providers" menu. Each is
+    // AND-gated with data presence: a section/bar renders only when the server returns
+    // its data AND the flag is true. All default true. Env overrides: USAGE_MONITOR_SHOW_*.
+    public bool ShowCodex { get; set; } = true;
+    public bool ShowCodexSpark { get; set; } = true;
+    public bool ShowClaude { get; set; } = true;
+    public bool ShowClaudeDesign { get; set; } = true;
+    public bool ShowClaude2Design { get; set; } = true;
+    public bool ShowZai { get; set; } = true;
 
     // Path to the local git checkout used for auto-update. null disables update checks.
     public string? RepoPath { get; set; }
@@ -64,22 +80,47 @@ public class Config
     {
         var url = Environment.GetEnvironmentVariable("USAGE_API_URL");
         if (!string.IsNullOrEmpty(url))
+        {
             config.UsageApiUrl = url;
+            config._envOverridden.Add(nameof(UsageApiUrl));
+        }
 
         var repo = Environment.GetEnvironmentVariable("USAGE_MONITOR_REPO");
         if (!string.IsNullOrEmpty(repo))
-            config.RepoPath = repo;
-
-        var showClaude2 = Environment.GetEnvironmentVariable("USAGE_MONITOR_SHOW_CLAUDE2");
-        switch (showClaude2?.Trim().ToLowerInvariant())
         {
-            case "1" or "true" or "yes" or "on":
-                config.ShowClaude2 = true;
-                break;
-            case "0" or "false" or "no" or "off":
-                config.ShowClaude2 = false;
-                break;
+            config.RepoPath = repo;
+            config._envOverridden.Add(nameof(RepoPath));
         }
+
+        ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_CODEX", nameof(ShowCodex), v => config.ShowCodex = v);
+        ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_CODEX_SPARK", nameof(ShowCodexSpark), v => config.ShowCodexSpark = v);
+        ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_CLAUDE", nameof(ShowClaude), v => config.ShowClaude = v);
+        ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_CLAUDE2", nameof(ShowClaude2), v => config.ShowClaude2 = v);
+        ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_CLAUDE_DESIGN", nameof(ShowClaudeDesign), v => config.ShowClaudeDesign = v);
+        ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_CLAUDE2_DESIGN", nameof(ShowClaude2Design), v => config.ShowClaude2Design = v);
+        ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_ZAI", nameof(ShowZai), v => config.ShowZai = v);
+    }
+
+    private static void ApplyFlagEnv(Config config, string envVar, string propertyName, Action<bool> set)
+    {
+        if (ParseBoolEnv(envVar) is bool value)
+        {
+            set(value);
+            config._envOverridden.Add(propertyName);
+        }
+    }
+
+    // Parses a tri-state on/off env var: true/false when recognized, null when unset
+    // or unrecognized (so the config/default value is left untouched).
+    private static bool? ParseBoolEnv(string name)
+    {
+        var value = Environment.GetEnvironmentVariable(name);
+        return value?.Trim().ToLowerInvariant() switch
+        {
+            "1" or "true" or "yes" or "on" => true,
+            "0" or "false" or "no" or "off" => false,
+            _ => null,
+        };
     }
 
     public void Save()
@@ -92,8 +133,30 @@ public class Config
             }
 
             var options = new JsonSerializerOptions { WriteIndented = true };
-            var json = JsonSerializer.Serialize(this, options);
-            File.WriteAllText(ConfigFilePath, json);
+            var node = JsonSerializer.SerializeToNode(this, options)!.AsObject();
+
+            // Don't persist env-sourced overrides: restore each overridden key to its
+            // existing on-disk value (or drop it) so a transient override never becomes
+            // a sticky preference once the env var is removed.
+            if (_envOverridden.Count > 0)
+            {
+                JsonObject? onDisk = null;
+                if (File.Exists(ConfigFilePath))
+                {
+                    try { onDisk = JsonNode.Parse(File.ReadAllText(ConfigFilePath)) as JsonObject; }
+                    catch { onDisk = null; }
+                }
+
+                foreach (var name in _envOverridden)
+                {
+                    if (onDisk is not null && onDisk.TryGetPropertyValue(name, out var prev) && prev is not null)
+                        node[name] = prev.DeepClone();
+                    else
+                        node.Remove(name);
+                }
+            }
+
+            File.WriteAllText(ConfigFilePath, node.ToJsonString(options));
         }
         catch (Exception ex)
         {

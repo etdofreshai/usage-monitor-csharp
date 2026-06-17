@@ -46,7 +46,7 @@ floating popup panel. Built with Avalonia UI.
 
 - **App** - Application entry point. Creates a hidden window, system tray icon, and the usage popup. Tray icon click toggles the popup visibility.
 
-- **UsagePopup** - Borderless, topmost, transparent window that floats above all other windows. Positioned near the taskbar. Two sections: System stats (CPU, memory, disk, network, uptime) and AI Credits (OpenRouter, OpenAI, Anthropic, Z.ai). Has an X button to close/hide and supports dragging from the title bar.
+- **UsagePopup** - Borderless, topmost, transparent window that floats above all other windows. Positioned near the taskbar. Two sections: System stats (CPU, memory, disk, network, uptime) and AI Credits (Codex incl. Spark, Claude + Claude2 each incl. a Design bar, Z.ai, plus OpenRouter/OpenAI when present). Each AI provider can be shown/hidden from the tray "Providers" menu (see Config). Has an X button to close/hide and supports dragging from the title bar.
 
 - **Program** - Entry point. Acquires a process-lifetime single-instance lock
   (`instance.lock`, an exclusive `FileShare.None` file under the app-data dir) before
@@ -68,6 +68,8 @@ floating popup panel. Built with Avalonia UI.
   in the tray instead of popping the panel.
 
 - **Config** - JSON configuration stored in `%AppData%\UsageMonitor\config.json`. API keys can also come from environment variables (`OPENAI_ADMIN_KEY`, `OPENROUTER_API_KEY`, `ANTHROPIC_ADMIN_KEY`, `ZAI_API_KEY`). `ShowClaude2` (default `true`, env override `USAGE_MONITOR_SHOW_CLAUDE2` with 1/true/yes/on or 0/false/no/off) AND-gates the second Claude account: it renders only when the server's `/api/usage` response includes a `providers.claude2` block AND this flag is true — server-side is the opt-in, this flag is a per-machine opt-out.
+
+  **Per-provider visibility:** `ShowCodex`, `ShowCodexSpark`, `ShowClaude`, `ShowClaude2`, `ShowClaudeDesign`, `ShowClaude2Design`, `ShowZai` (all default `true`) toggle each provider's section/sub-bar, surfaced live in the tray **Providers** menu. Each AND-gates with data presence (renders only when the server returns that provider AND the flag is true). Each has a matching `USAGE_MONITOR_SHOW_*` env override (e.g. `USAGE_MONITOR_SHOW_CODEX_SPARK`). Env overrides are runtime-only: they take effect for the session but are **not** written back to `config.json` when a menu toggle saves, so removing the env var reverts to the on-disk preference. `UsagePopup` owns the single `Config`; the menu items just call `IsProviderVisible`/`SetProviderVisible`, which saves and re-renders (`ReapplyProviderVisibility` → `ReflowAiGrid` repacks the visible AI cards so hiding a subset leaves no gaps).
 
 ### AI Service Clients (`Services/`)
 
