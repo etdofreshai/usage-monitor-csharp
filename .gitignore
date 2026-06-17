@@ -40,5 +40,5 @@ bld/
 ## Temp
 tmp/
 
-## Auto-generated build info
-src/UsageMonitor/BuildInfo.cs
+## macOS bundle output from build-macos-app.sh --no-install
+dist/

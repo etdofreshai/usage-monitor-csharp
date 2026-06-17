@@ -18,15 +18,54 @@ dotnet build && dotnet run --project src/UsageMonitor
 dotnet publish src/UsageMonitor -c Release
 ```
 
+### macOS packaging
+
+```bash
+# Build a self-contained osx-arm64 bundle, install to /Applications, and launch it
+./build-macos-app.sh
+
+# Build into ./dist without touching /Applications
+./build-macos-app.sh --no-install
+```
+
+`build-macos-app.sh` does a self-contained `osx-arm64` publish, assembles a proper
+`/Applications/UsageMonitor.app` (bundle id `com.usage-monitor`, `LSUIElement=true`
+so it's a menu-bar agent with no Dock tile), generates `AppIcon.icns` from
+`Assets/usage-monitor.png`, clears quarantine, and ad-hoc signs the bundle (an
+arm64 binary needs at least an ad-hoc signature to run). It mirrors the layout of
+the sibling WhisperKeyboard.app. Requires the keg-only `dotnet@8` at
+`/opt/homebrew/bin/dotnet`.
+
 ## Architecture
 
-Usage Monitor is a Windows system tray application that displays system resource usage and AI service credits in a floating popup panel. Built with Avalonia UI.
+Usage Monitor is a cross-platform (Windows + macOS) menu-bar / system-tray
+application that displays system resource usage and AI service credits in a
+floating popup panel. Built with Avalonia UI.
 
 ### Core Components
 
 - **App** - Application entry point. Creates a hidden window, system tray icon, and the usage popup. Tray icon click toggles the popup visibility.
 
 - **UsagePopup** - Borderless, topmost, transparent window that floats above all other windows. Positioned near the taskbar. Two sections: System stats (CPU, memory, disk, network, uptime) and AI Credits (OpenRouter, OpenAI, Anthropic, Z.ai). Has an X button to close/hide and supports dragging from the title bar.
+
+- **Program** - Entry point. Acquires a process-lifetime single-instance lock
+  (`instance.lock`, an exclusive `FileShare.None` file under the app-data dir) before
+  starting Avalonia, so a login-launched instance and a manual launch can't stack two
+  tray icons. A second instance fails to acquire the lock and exits quietly.
+
+- **StartupService** (`Services/`) - Cross-platform "run on system start" toggle behind
+  `IStartupService` (`StartupService.Create()` picks the implementation). The OS itself is
+  the single source of truth — there is no config-backed flag to drift:
+  - **macOS** (`MacStartupService`): a per-user LaunchAgent at
+    `~/Library/LaunchAgents/com.usage-monitor.plist` (`RunAtLoad`, launching the bundle's
+    inner Mach-O with `--from-login`). The plist's existence is the truth; `launchctl
+    bootstrap`/`bootout` are best-effort "apply this session" and never gate the toggle.
+    `IsSupported` is false unless running from an installed `.app`, so the menu item is
+    hidden in `dotnet run` dev sessions (where the exe path would be wrong).
+  - **Windows** (`WindowsStartupService`): the per-user `HKCU\...\CurrentVersion\Run` key.
+  The tray menu's "Run on system start" item is a checkbox that reflects this live OS state
+  and re-reads it after every toggle. When launched with `--from-login` the app stays quietly
+  in the tray instead of popping the panel.
 
 - **Config** - JSON configuration stored in `%AppData%\UsageMonitor\config.json`. API keys can also come from environment variables (`OPENAI_ADMIN_KEY`, `OPENROUTER_API_KEY`, `ANTHROPIC_ADMIN_KEY`, `ZAI_API_KEY`). `ShowClaude2` (default `true`, env override `USAGE_MONITOR_SHOW_CLAUDE2` with 1/true/yes/on or 0/false/no/off) AND-gates the second Claude account: it renders only when the server's `/api/usage` response includes a `providers.claude2` block AND this flag is true — server-side is the opt-in, this flag is a per-machine opt-out.
 
