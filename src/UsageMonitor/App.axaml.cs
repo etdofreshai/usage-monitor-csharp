@@ -111,11 +111,17 @@ public partial class App : Application
             trayMenu.Items.Add(new NativeMenuItemSeparator());
 
             var quitItem = new NativeMenuItem("Quit");
-            quitItem.Click += (s, e) =>
+            // Post like every other item: on macOS this handler fires inside the
+            // NSStatusItem menu-tracking loop, and stopping the app from within it
+            // frequently leaves the run loop wedged (the classic "Quit hangs" bug).
+            quitItem.Click += (s, e) => Dispatcher.UIThread.Post(() =>
             {
-                _popup?.ForceClose();
-                desktop.Shutdown();
-            };
+                // Pull the status item out of the menu bar before stopping the run
+                // loop — a live NSStatusItem can pin the dying process on macOS.
+                if (_trayIcon != null)
+                    _trayIcon.IsVisible = false;
+                _popup?.ForceClose(); // tears down services and ends the lifetime
+            });
             trayMenu.Items.Add(quitItem);
 
             _trayIcon = new TrayIcon
@@ -131,6 +137,30 @@ public partial class App : Application
 
             var icons = new TrayIcons { _trayIcon };
             SetValue(TrayIcon.IconsProperty, icons);
+
+            // OS-initiated termination (Cmd+Q, Activity Monitor quit, logout,
+            // system shutdown): release timers/services up front. The popup's
+            // OnClosing already scopes its hide-on-close veto to user closes, so
+            // the lifetime can close our windows and terminate cleanly.
+            desktop.ShutdownRequested += (_, _) => _popup?.PrepareShutdown();
+
+            desktop.Exit += (_, e) =>
+            {
+                if (_trayIcon != null)
+                    _trayIcon.IsVisible = false;
+                _trayIcon?.Dispose();
+                // Watchdog: if the native run loop fails to unwind after shutdown
+                // (macOS NSApp.stop() only takes effect once another real event is
+                // processed), don't leave a ghost process in the background.
+                var exitCode = e.ApplicationExitCode;
+                new Thread(() =>
+                {
+                    Thread.Sleep(3000);
+                    try { AppLog.WriteLine("Exit watchdog: run loop did not unwind after shutdown; forcing process exit."); }
+                    catch { /* racing normal teardown — exit regardless */ }
+                    Environment.Exit(exitCode);
+                }) { IsBackground = true }.Start();
+            };
 
             // When launched at login (via the LaunchAgent's --from-login arg), stay
             // quietly in the tray instead of popping up the panel on every boot.

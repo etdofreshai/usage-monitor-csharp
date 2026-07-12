@@ -100,6 +100,9 @@ public class UpdateChecker : IDisposable
                 FileName = exePath,
                 UseShellExecute = true,
             };
+            // Tells the new instance to wait briefly for this one to release the
+            // single-instance lock instead of exiting as a "second instance".
+            psi.ArgumentList.Add("--from-restart");
             Process.Start(psi);
         }
         catch (Exception ex)

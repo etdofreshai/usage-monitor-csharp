@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Controls.Documents;
 using Avalonia.Input;
 using Avalonia.Media;
@@ -36,6 +37,7 @@ public partial class UsagePopup : Window
     private readonly Bitmap _appBitmap;
     private PopupViewMode _viewMode = PopupViewMode.Full;
     private bool _allowClose;
+    private bool _shutdownStarted;
 
     // Drag state
     private bool _isDragging;
@@ -370,12 +372,31 @@ public partial class UsagePopup : Window
         Hide();
     }
 
-    public void ForceClose()
+    // Idempotent pre-shutdown teardown. Called from the quit path, from the
+    // lifetime's ShutdownRequested hook (Cmd+Q / logout / OS shutdown), or both.
+    public void PrepareShutdown()
     {
+        _allowClose = true;
+        _systemRefreshTimer.Stop();
+        _aiRefreshTimer.Stop();
         _usageApiService?.Dispose();
         _updateChecker?.Dispose();
-        _allowClose = true;
+    }
+
+    public void ForceClose()
+    {
+        // A double-activated Quit posts this twice; the second pass must not call
+        // desktop.Shutdown() again (it would re-raise Exit and re-dispose the tray).
+        if (_shutdownStarted) return;
+        _shutdownStarted = true;
+
+        PrepareShutdown();
         Close();
+        // ShutdownMode is OnExplicitShutdown, so closing the last window is not
+        // enough — end the lifetime here so both Quit and the update-restart
+        // path fully exit the process instead of lingering with a live tray icon.
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            desktop.Shutdown();
     }
 
     private async Task ApplyUpdateAsync()
@@ -1298,11 +1319,21 @@ public partial class UsagePopup : Window
 
     protected override void OnClosing(WindowClosingEventArgs e)
     {
-        if (!_allowClose)
+        // Hide-on-close applies only to user-initiated closes. App- or OS-driven
+        // closes (Cmd+Q, logout, macOS system shutdown) must never be vetoed —
+        // cancelling those makes macOS report "UsageMonitor interrupted shutdown"
+        // and hangs the whole machine's shutdown until the OS force-kills us.
+        if (!_allowClose && e.CloseReason == WindowCloseReason.WindowClosing)
         {
             e.Cancel = true;
             HidePopup();
         }
+        else
+        {
+            _systemRefreshTimer.Stop();
+            _aiRefreshTimer.Stop();
+        }
+        base.OnClosing(e);
     }
 }
 

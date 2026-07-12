@@ -12,36 +12,45 @@ class Program
     [STAThread]
     public static void Main(string[] args)
     {
-        if (!TryAcquireSingleInstanceLock())
+        // After an update-restart the predecessor may still be releasing the lock;
+        // give it a short grace window instead of exiting as a "second instance".
+        var fromRestart = args.Any(a => string.Equals(a, "--from-restart", StringComparison.OrdinalIgnoreCase));
+        if (!TryAcquireSingleInstanceLock(fromRestart ? TimeSpan.FromSeconds(10) : TimeSpan.Zero))
             return;
 
         BuildAvaloniaApp()
             .StartWithClassicDesktopLifetime(args);
     }
 
-    private static bool TryAcquireSingleInstanceLock()
+    private static bool TryAcquireSingleInstanceLock(TimeSpan gracePeriod)
     {
-        try
+        var deadline = DateTime.UtcNow + gracePeriod;
+        while (true)
         {
-            var dir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "UsageMonitor");
-            Directory.CreateDirectory(dir);
-            // Exclusive open (FileShare.None) acts as a cross-process lock on both
-            // macOS and Windows; a second instance throws here and exits quietly.
-            _instanceLock = new FileStream(
-                Path.Combine(dir, "instance.lock"),
-                FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
-            return true;
-        }
-        catch (IOException)
-        {
-            return false; // another instance already holds the lock
-        }
-        catch (Exception ex)
-        {
-            // Never let the guard itself prevent startup.
-            AppLog.WriteLine($"Single-instance lock unavailable, continuing: {ex.Message}");
-            return true;
+            try
+            {
+                var dir = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "UsageMonitor");
+                Directory.CreateDirectory(dir);
+                // Exclusive open (FileShare.None) acts as a cross-process lock on both
+                // macOS and Windows; a second instance throws here and exits quietly.
+                _instanceLock = new FileStream(
+                    Path.Combine(dir, "instance.lock"),
+                    FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+                return true;
+            }
+            catch (IOException)
+            {
+                if (DateTime.UtcNow >= deadline)
+                    return false; // another instance already holds the lock
+                Thread.Sleep(250);
+            }
+            catch (Exception ex)
+            {
+                // Never let the guard itself prevent startup.
+                AppLog.WriteLine($"Single-instance lock unavailable, continuing: {ex.Message}");
+                return true;
+            }
         }
     }
 
