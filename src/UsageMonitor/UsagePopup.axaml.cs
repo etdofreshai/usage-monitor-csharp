@@ -67,7 +67,8 @@ public partial class UsagePopup : Window
     private double? _zai5hPercent, _zaiMoPercent;
 
     // Latest used/expected percent per AI window, used for compact-view rendering.
-    private double _codex5hUsed, _codex7dUsed;
+    private double? _codex5hUsed;
+    private double _codex7dUsed;
     private double? _codex5hExpected, _codex7dExpected;
     private double? _codexSpark5hUsed, _codexSpark7dUsed;
     private double? _codexSpark5hExpected, _codexSpark7dExpected;
@@ -705,16 +706,27 @@ public partial class UsagePopup : Window
         var show = c != null && _config.ShowCodex;
         CodexSection.IsVisible = show;
         if (!show || c == null) return;
-        var primary = Math.Clamp(c.Primary.UsedPercent, 0, 100);
+        var primary = c.Primary is { } primaryWindow
+            ? Math.Clamp(primaryWindow.UsedPercent, 0, 100)
+            : (double?)null;
         var secondary = Math.Clamp(c.Secondary.UsedPercent, 0, 100);
-        SetTwoUsedExpectedInlines(CodexCreditsText, primary, c.Primary.ExpectedPercent, secondary, c.Secondary.ExpectedPercent);
+        if (primary.HasValue)
+            SetTwoUsedExpectedInlines(CodexCreditsText, primary.Value, c.Primary!.ExpectedPercent, secondary, c.Secondary.ExpectedPercent);
+        else
+        {
+            SetUsedExpectedInlines(CodexCreditsText, secondary, c.Secondary.ExpectedPercent);
+            CodexCreditsText.Inlines!.Add(new Run(" used"));
+        }
         _codex5hUsed = primary;
         _codex7dUsed = secondary;
-        _codex5hExpected = c.Primary.ExpectedPercent;
+        _codex5hExpected = c.Primary?.ExpectedPercent;
         _codex7dExpected = c.Secondary.ExpectedPercent;
-        SetTargetBar(CodexPrimaryBar, primary, _codex5hExpected);
+        Codex5hLabel.IsVisible = primary.HasValue;
+        CodexPrimaryBar.IsVisible = primary.HasValue;
+        if (primary.HasValue)
+            SetTargetBar(CodexPrimaryBar, primary.Value, _codex5hExpected);
         SetTargetBar(CodexSecondaryBar, secondary, _codex7dExpected);
-        _codex5hReset = c.Primary.ResetsAt;
+        _codex5hReset = c.Primary?.ResetsAt;
         _codex7dReset = c.Secondary.ResetsAt;
 
         // Spark (GPT-5.3-Codex-Spark) optional bars, gated by the Codex Spark toggle.
@@ -753,7 +765,9 @@ public partial class UsagePopup : Window
             _codexSpark7dReset = null;
         }
 
-        var range = $"5h: in {FormatResetCountdown(c.Primary.ResetsAt)} • 7d: {FormatResetDate(c.Secondary.ResetsAt)}";
+        var range = primary.HasValue
+            ? $"5h: in {FormatResetCountdown(c.Primary!.ResetsAt)} • 7d: {FormatResetDate(c.Secondary.ResetsAt)}"
+            : $"7d: {FormatResetDate(c.Secondary.ResetsAt)}";
         if (showSpark5h || showSpark7d)
         {
             var sparkPct = _codexSpark5hUsed.HasValue && _codexSpark7dUsed.HasValue
@@ -990,9 +1004,12 @@ public partial class UsagePopup : Window
         OpenAiCompactText.Text = OpenAiCreditsText.Text ?? "—";
 
         const double barWidth = 62.0;
-        RenderCompactBar(CodexCompact5hBar, CodexCompact5hTick, Color.FromRgb(0x8B, 0xC3, 0x4A), _codex5hUsed, _codex5hExpected, barWidth);
+        CodexCompact5hRow.IsVisible = _codex5hUsed.HasValue;
+        if (_codex5hUsed.HasValue)
+            RenderCompactBar(CodexCompact5hBar, CodexCompact5hTick, Color.FromRgb(0x8B, 0xC3, 0x4A), _codex5hUsed.Value, _codex5hExpected, barWidth);
         RenderCompactBar(CodexCompact7dBar, CodexCompact7dTick, Color.FromRgb(0xB3, 0x9D, 0xDB), _codex7dUsed, _codex7dExpected, barWidth);
-        SetUsedExpectedInlines(CodexCompact5hPct, _codex5hUsed, _codex5hExpected);
+        if (_codex5hUsed.HasValue)
+            SetUsedExpectedInlines(CodexCompact5hPct, _codex5hUsed, _codex5hExpected);
         SetUsedExpectedInlines(CodexCompact7dPct, _codex7dUsed, _codex7dExpected);
         CodexCompact5hReset.Text = _codex5hReset.HasValue ? $"in {FormatResetCountdown(_codex5hReset)}" : "";
         CodexCompact7dReset.Text = _codex7dReset.HasValue ? FormatResetDate(_codex7dReset) : "";
@@ -1336,4 +1353,3 @@ public partial class UsagePopup : Window
         base.OnClosing(e);
     }
 }
-

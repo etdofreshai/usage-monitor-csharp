@@ -11,7 +11,7 @@ public record UsageWindow(
 );
 
 public record ClaudeBlock(UsageWindow FiveHour, UsageWindow SevenDay, UsageWindow? SevenDayDesign, string? SubscriptionType);
-public record CodexBlock(UsageWindow Primary, UsageWindow Secondary, UsageWindow? SparkPrimary, UsageWindow? SparkSecondary, string? PlanType, string? CreditsBalance);
+public record CodexBlock(UsageWindow? Primary, UsageWindow Secondary, UsageWindow? SparkPrimary, UsageWindow? SparkSecondary, string? PlanType, string? CreditsBalance);
 public record ZaiBlock(UsageWindow? FiveHour, UsageWindow? Monthly, long? MonthlyCurrent, long? MonthlyLimit, string? Level);
 public record OpenRouterBlock(double Usage, double? Limit, double? LimitRemaining, bool? IsFreeTier);
 public record OpenAiBlock(double SpendToday, double SpendMonth, string Currency);
@@ -113,8 +113,12 @@ public class UsageApiService : IDisposable
     private static CodexBlock? ParseCodex(JsonElement data)
     {
         if (data.ValueKind != JsonValueKind.Object) return null;
-        if (!data.TryGetProperty("primary", out var pri) || !data.TryGetProperty("secondary", out var sec))
+        if (!data.TryGetProperty("secondary", out var sec) || sec.ValueKind != JsonValueKind.Object)
             return null;
+
+        UsageWindow? primary = null;
+        if (data.TryGetProperty("primary", out var pri) && pri.ValueKind == JsonValueKind.Object)
+            primary = ParseWindow(pri, "used_percent");
 
         UsageWindow? sparkPri = null, sparkSec = null;
         if (data.TryGetProperty("additional", out var add) && add.ValueKind == JsonValueKind.Array)
@@ -137,7 +141,7 @@ public class UsageApiService : IDisposable
         }
 
         return new CodexBlock(
-            ParseWindow(pri, "used_percent"),
+            primary,
             ParseWindow(sec, "used_percent"),
             sparkPri,
             sparkSec,
