@@ -403,6 +403,8 @@ public partial class UsagePopup : Window
     private async Task ApplyUpdateAsync()
     {
         if (_updateChecker == null || !_updateChecker.Enabled) return;
+        UpdateButton.IsEnabled = false;
+        UpdateButtonCompact.IsEnabled = false;
         try
         {
             var success = await _updateChecker.ApplyUpdateAsync();
@@ -415,6 +417,13 @@ public partial class UsagePopup : Window
         catch (Exception ex)
         {
             Console.WriteLine($"Update apply failed: {ex.Message}");
+        }
+        finally
+        {
+            // A successful update closes this window. If it failed, make the
+            // visible update affordance available again for a later retry.
+            UpdateButton.IsEnabled = true;
+            UpdateButtonCompact.IsEnabled = true;
         }
     }
 

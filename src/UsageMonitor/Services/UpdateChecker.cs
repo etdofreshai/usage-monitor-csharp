@@ -11,6 +11,7 @@ public class UpdateChecker : IDisposable
     private readonly string? _repoPath;
     private readonly Timer _timer;
     private int _checkInFlight;
+    private int _applyInFlight;
 
     public bool UpdateAvailable { get; private set; }
     public string? RemoteSha { get; private set; }
@@ -76,16 +77,26 @@ public class UpdateChecker : IDisposable
     public async Task<bool> ApplyUpdateAsync()
     {
         if (!Enabled) return false;
+
+        // The update buttons exist in both the compact and full layouts. A second
+        // click could otherwise launch another git pull while the first is still
+        // using FETCH_HEAD, causing an avoidable pull failure.
+        if (Interlocked.Exchange(ref _applyInFlight, 1) == 1) return false;
+
         try
         {
             await RunGitAsync("pull", "--ff-only", "origin", "main");
-            await RunCommandAsync("dotnet", new[] { "build", "-c", "Debug" });
+            await RunCommandAsync(ResolveDotnetExecutable(), new[] { "build", "-c", "Debug" });
             return true;
         }
         catch (Exception ex)
         {
             AppLog.WriteLine($"UpdateChecker apply failed: {ex.Message}");
             return false;
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _applyInFlight, 0);
         }
     }
 
@@ -112,6 +123,31 @@ public class UpdateChecker : IDisposable
     }
 
     private Task<string> RunGitAsync(params string[] args) => RunCommandAsync("git", args);
+
+    private static string ResolveDotnetExecutable()
+    {
+        var executableName = OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet";
+        var candidates = new List<string?>
+        {
+            Environment.GetEnvironmentVariable("DOTNET_HOST_PATH"),
+            CombineWithExecutable(Environment.GetEnvironmentVariable("DOTNET_ROOT"), executableName),
+        };
+
+        if (OperatingSystem.IsMacOS())
+        {
+            // GUI applications launched by macOS do not inherit the user's shell
+            // PATH, so Homebrew's dotnet is otherwise invisible to the updater.
+            candidates.Add("/opt/homebrew/bin/dotnet");
+            candidates.Add("/usr/local/bin/dotnet");
+            candidates.Add("/usr/local/share/dotnet/dotnet");
+        }
+
+        return candidates.FirstOrDefault(path => !string.IsNullOrWhiteSpace(path) && File.Exists(path))
+            ?? executableName;
+    }
+
+    private static string? CombineWithExecutable(string? directory, string executableName) =>
+        string.IsNullOrWhiteSpace(directory) ? null : Path.Combine(directory, executableName);
 
     private async Task<string> RunCommandAsync(string fileName, string[] args)
     {
