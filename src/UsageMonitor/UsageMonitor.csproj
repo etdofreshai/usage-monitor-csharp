@@ -16,6 +16,8 @@
     <PackageReference Include="Avalonia.Fonts.Inter" Version="11.2.1" />
     <PackageReference Include="Avalonia.Diagnostics" Version="11.2.1" Condition="'$(Configuration)' == 'Debug'" />
     <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="8.0.0" />
+    <!-- Avalonia.FreeDesktop 11.2.1 resolves the vulnerable 0.20.0 release transitively. -->
+    <PackageReference Include="Tmds.DBus.Protocol" Version="0.94.2" />
     <!-- Windows launch-at-login (HKCU Run key). Guarded by [SupportedOSPlatform] +
          OperatingSystem.IsWindows(); on other RIDs the API surface is present but unused. -->
     <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" />
