@@ -21,6 +21,7 @@ public record UsageApiStatus(
     ClaudeBlock? Claude,
     ClaudeBlock? Claude2,
     CodexBlock? Codex,
+    CodexBlock? Codex2,
     ZaiBlock? Zai,
     OpenRouterBlock? OpenRouter,
     OpenAiBlock? OpenAi
@@ -60,6 +61,7 @@ public class UsageApiService : IDisposable
                 ParseClaude(GetData(providers, "claude")),
                 ParseClaude(GetData(providers, "claude2")),
                 ParseCodex(GetData(providers, "codex")),
+                ParseCodex(GetData(providers, "codex2")),
                 ParseZai(GetData(providers, "zai")),
                 ParseOpenRouter(GetData(providers, "openrouter")),
                 ParseOpenAi(GetData(providers, "openai"))

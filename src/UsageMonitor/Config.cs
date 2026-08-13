@@ -37,15 +37,21 @@ public class Config
     // set false per machine to opt out.
     public bool ShowClaude2 { get; set; } = true;
 
-    // Per-provider visibility, toggled live from the tray "Providers" menu. Each is
-    // AND-gated with data presence: a section/bar renders only when the server returns
-    // its data AND the flag is true. All default true. Env overrides: USAGE_MONITOR_SHOW_*.
+    // Per-provider visibility, mostly toggled live from the tray "Providers" menu.
+    // Codex #2 is config/env-only so it leaves no menu trace when unconfigured. Each
+    // is AND-gated with data presence. All default true. Env: USAGE_MONITOR_SHOW_*.
     public bool ShowCodex { get; set; } = true;
+    // Account #2 remains absent unless usage-api exposes providers.codex2.
+    public bool ShowCodex2 { get; set; } = true;
     public bool ShowCodexSpark { get; set; } = true;
     public bool ShowClaude { get; set; } = true;
     public bool ShowClaudeDesign { get; set; } = true;
     public bool ShowClaude2Design { get; set; } = true;
     public bool ShowZai { get; set; } = true;
+
+    // Per-drive visibility, keyed by the drive root/mount path. Missing entries
+    // default to visible so newly attached fixed drives appear automatically.
+    public Dictionary<string, bool> DriveVisibility { get; set; } = new();
 
     // Path to the local git checkout used for auto-update. null disables update checks.
     public string? RepoPath { get; set; }
@@ -93,6 +99,7 @@ public class Config
         }
 
         ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_CODEX", nameof(ShowCodex), v => config.ShowCodex = v);
+        ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_CODEX2", nameof(ShowCodex2), v => config.ShowCodex2 = v);
         ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_CODEX_SPARK", nameof(ShowCodexSpark), v => config.ShowCodexSpark = v);
         ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_CLAUDE", nameof(ShowClaude), v => config.ShowClaude = v);
         ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_CLAUDE2", nameof(ShowClaude2), v => config.ShowClaude2 = v);
@@ -162,6 +169,16 @@ public class Config
         {
             Console.WriteLine($"Error saving config: {ex.Message}");
         }
+    }
+
+    public bool IsDriveVisible(string driveKey) =>
+        DriveVisibility is null || !DriveVisibility.TryGetValue(driveKey, out var visible) || visible;
+
+    public void SetDriveVisible(string driveKey, bool visible)
+    {
+        DriveVisibility ??= new Dictionary<string, bool>();
+        DriveVisibility[driveKey] = visible;
+        Save();
     }
 
     public static string GetConfigPath() => ConfigFilePath;

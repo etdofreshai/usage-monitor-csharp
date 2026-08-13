@@ -55,12 +55,38 @@ public partial class UsagePopup : Window
     private long _lastBytesReceived;
     private DateTime _lastNetworkCheck = DateTime.MinValue;
 
-    // CPU tracking (Windows)
+    // CPU tracking. Windows uses PerformanceCounter; Unix-like systems sample
+    // cumulative kernel counters and calculate the delta between refreshes.
     private PerformanceCounter? _cpuCounter;
+    private ulong _lastCpuTotal;
+    private ulong _lastCpuIdle;
+    private bool _hasCpuSample;
+    private double _cpuPercent;
+    private double _memoryPercent;
+
+    public sealed record DriveToggle(string Key, string Label);
+
+    private sealed class DriveDisplay
+    {
+        public required DriveInfo Drive { get; init; }
+        public required string Key { get; init; }
+        public required string Label { get; init; }
+        public required Grid FullRow { get; init; }
+        public required Grid FullBar { get; init; }
+        public required Border FullFill { get; init; }
+        public required Grid CompactRow { get; init; }
+        public required Border CompactFill { get; init; }
+        public required TextBlock CompactPercent { get; init; }
+    }
+
+    private readonly List<DriveDisplay> _driveDisplays = new();
+    public IReadOnlyList<DriveToggle> DriveToggles { get; private set; } = Array.Empty<DriveToggle>();
 
     // Latest reset timestamps (driven by RefreshXxxAsync, read by UpdateCompactSummary)
     private DateTimeOffset? _codex5hReset, _codex7dReset;
     private DateTimeOffset? _codexSpark5hReset, _codexSpark7dReset;
+    private DateTimeOffset? _codex2FiveHourReset, _codex2SevenDayReset;
+    private DateTimeOffset? _codex2SparkFiveHourReset, _codex2SparkSevenDayReset;
     private DateTimeOffset? _claude5hReset, _claude7dReset, _claudeDesignReset;
     private DateTimeOffset? _claude2FiveHourReset, _claude2SevenDayReset, _claude2DesignReset;
     private DateTimeOffset? _zai5hReset, _zaiMoReset;
@@ -72,6 +98,11 @@ public partial class UsagePopup : Window
     private double? _codex5hExpected, _codex7dExpected;
     private double? _codexSpark5hUsed, _codexSpark7dUsed;
     private double? _codexSpark5hExpected, _codexSpark7dExpected;
+    private double? _codex2FiveHourUsed;
+    private double _codex2SevenDayUsed;
+    private double? _codex2FiveHourExpected, _codex2SevenDayExpected;
+    private double? _codex2SparkFiveHourUsed, _codex2SparkSevenDayUsed;
+    private double? _codex2SparkFiveHourExpected, _codex2SparkSevenDayExpected;
     private double _claude5hUsed, _claude7dUsed;
     private double? _claude5hExpected, _claude7dExpected;
     private double? _claudeDesignUsed;
@@ -105,7 +136,7 @@ public partial class UsagePopup : Window
     private UsageApiStatus? _lastStatus;
 
     // Provider visibility toggles surfaced (in this order) in the tray "Providers" menu.
-    public enum ProviderToggle { Codex, CodexSpark, Claude, Claude2, ClaudeDesign, Claude2Design, Zai }
+    public enum ProviderToggle { Codex, Codex2, CodexSpark, Claude, Claude2, ClaudeDesign, Claude2Design, Zai }
 
     public static readonly IReadOnlyList<(ProviderToggle Key, string Label)> ProviderToggles = new[]
     {
@@ -128,6 +159,7 @@ public partial class UsagePopup : Window
         RestoreIconImage.Source = _appBitmap;
 
         _config = Config.Load();
+        InitializeDriveDisplays();
 
         // Wire up close button
         CloseButton.Click += (s, e) => HidePopup();
@@ -172,6 +204,10 @@ public partial class UsagePopup : Window
         RegisterTargetBar(CodexSecondaryBar, CodexSecondaryBarFill, CodexSecondaryBarTick, Color.FromRgb(0xB3, 0x9D, 0xDB));
         RegisterTargetBar(CodexSparkPrimaryBar, CodexSparkPrimaryBarFill, CodexSparkPrimaryBarTick, Color.FromRgb(0x4D, 0xD0, 0xE1));
         RegisterTargetBar(CodexSparkSecondaryBar, CodexSparkSecondaryBarFill, CodexSparkSecondaryBarTick, Color.FromRgb(0x4D, 0xB6, 0xAC));
+        RegisterTargetBar(Codex2PrimaryBar, Codex2PrimaryBarFill, Codex2PrimaryBarTick, Color.FromRgb(0x64, 0xB5, 0xF6));
+        RegisterTargetBar(Codex2SecondaryBar, Codex2SecondaryBarFill, Codex2SecondaryBarTick, Color.FromRgb(0x90, 0xCA, 0xF9));
+        RegisterTargetBar(Codex2SparkPrimaryBar, Codex2SparkPrimaryBarFill, Codex2SparkPrimaryBarTick, Color.FromRgb(0x95, 0x75, 0xCD));
+        RegisterTargetBar(Codex2SparkSecondaryBar, Codex2SparkSecondaryBarFill, Codex2SparkSecondaryBarTick, Color.FromRgb(0xB3, 0x9D, 0xDB));
         RegisterTargetBar(ClaudeCodePrimaryBar, ClaudeCodePrimaryBarFill, ClaudeCodePrimaryBarTick, Color.FromRgb(0xFF, 0x8A, 0x65));
         RegisterTargetBar(ClaudeCodeSecondaryBar, ClaudeCodeSecondaryBarFill, ClaudeCodeSecondaryBarTick, Color.FromRgb(0xFF, 0xB7, 0x4D));
         RegisterTargetBar(ClaudeDesignBar, ClaudeDesignBarFill, ClaudeDesignBarTick, Color.FromRgb(0xF4, 0x8F, 0xB1));
@@ -478,9 +514,23 @@ public partial class UsagePopup : Window
             }
             catch { }
         }
+        else if (TryReadCpuTimes(out var total, out var idle))
+        {
+            if (_hasCpuSample && total > _lastCpuTotal)
+            {
+                var totalDelta = total - _lastCpuTotal;
+                var idleDelta = idle >= _lastCpuIdle ? idle - _lastCpuIdle : 0;
+                cpuPercent = Math.Clamp((1.0 - idleDelta / (double)totalDelta) * 100.0, 0, 100);
+            }
+            _lastCpuTotal = total;
+            _lastCpuIdle = idle;
+            _hasCpuSample = true;
+        }
 
-        CpuBar.Value = cpuPercent;
+        _cpuPercent = Math.Clamp(cpuPercent, 0, 100);
+        SetPlainBar(CpuBar, CpuBarFill, _cpuPercent);
         CpuPercentText.Text = $"{cpuPercent:F0}%";
+        UpdateCompactSystemBars();
     }
 
     private void UpdateMemory()
@@ -497,17 +547,18 @@ public partial class UsagePopup : Window
                     double usedGB = (status.ullTotalPhys - status.ullAvailPhys) / (1024.0 * 1024 * 1024);
                     double percent = (usedGB / totalGB) * 100;
 
-                    MemoryBar.Value = percent;
-                    MemoryText.Text = $"{usedGB:F1} / {totalGB:F1} GB";
+                    SetMemoryDisplay(usedGB, totalGB, percent);
                 }
             }
             catch { }
         }
         else
         {
-            var info = GC.GetGCMemoryInfo();
-            double totalGB = info.TotalAvailableMemoryBytes / (1024.0 * 1024 * 1024);
-            MemoryText.Text = $"~{totalGB:F1} GB total";
+            if (TryReadUnixMemory(out var usedBytes, out var totalBytes) && totalBytes > 0)
+            {
+                var divisor = 1024.0 * 1024 * 1024;
+                SetMemoryDisplay(usedBytes / divisor, totalBytes / divisor, usedBytes / (double)totalBytes * 100);
+            }
         }
     }
 
@@ -515,19 +566,272 @@ public partial class UsagePopup : Window
     {
         try
         {
-            var drive = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-                ? new DriveInfo("C")
-                : new DriveInfo("/");
+            foreach (var display in _driveDisplays)
+            {
+                var visible = _config.IsDriveVisible(display.Key);
+                display.FullRow.IsVisible = visible;
+                display.CompactRow.IsVisible = visible;
+                if (!visible || !display.Drive.IsReady || display.Drive.TotalSize <= 0)
+                    continue;
 
-            double totalGB = drive.TotalSize / (1024.0 * 1024 * 1024);
-            double usedGB = (drive.TotalSize - drive.AvailableFreeSpace) / (1024.0 * 1024 * 1024);
-            double percent = (usedGB / totalGB) * 100;
-
-            DiskBar.Value = percent;
-            DiskText.Text = $"{usedGB:F0} / {totalGB:F0} GB";
+                var percent = Math.Clamp(
+                    (display.Drive.TotalSize - display.Drive.AvailableFreeSpace) /
+                    (double)display.Drive.TotalSize * 100.0, 0, 100);
+                SetPlainBar(display.FullBar, display.FullFill, percent);
+                display.CompactFill.Width = percent / 100.0 * 62.0;
+                display.CompactPercent.Text = $"{percent:F0}%";
+            }
+            DriveSection.IsVisible = _driveDisplays.Any(d => d.FullRow.IsVisible);
         }
         catch { }
     }
+
+    private void SetMemoryDisplay(double usedGB, double totalGB, double percent)
+    {
+        _memoryPercent = Math.Clamp(percent, 0, 100);
+        SetPlainBar(MemoryBar, MemoryBarFill, _memoryPercent);
+        MemoryPercentText.Text = $"{_memoryPercent:F0}%";
+        MemoryText.Text = $"{usedGB:F1} / {totalGB:F1} GB";
+        UpdateCompactSystemBars();
+    }
+
+    private static void SetPlainBar(Grid container, Border fill, double percent)
+    {
+        var width = container.Bounds.Width;
+        if (width > 0)
+            fill.Width = Math.Clamp(percent, 0, 100) / 100.0 * width;
+    }
+
+    private void UpdateCompactSystemBars()
+    {
+        const double barWidth = 62.0;
+        CpuCompactBar.Width = _cpuPercent / 100.0 * barWidth;
+        MemoryCompactBar.Width = _memoryPercent / 100.0 * barWidth;
+        CpuCompactText.Text = $"{_cpuPercent:F0}%";
+        MemoryCompactText.Text = $"{_memoryPercent:F0}%";
+    }
+
+    private void InitializeDriveDisplays()
+    {
+        var drives = DriveInfo.GetDrives()
+            .Where(IsUserDrive)
+            .OrderBy(d => d.Name == Path.DirectorySeparatorChar.ToString() ? 0 : 1)
+            .ThenBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        DriveToggles = drives.Select(d => new DriveToggle(d.Name, GetDriveLabel(d))).ToArray();
+        foreach (var drive in drives)
+        {
+            var label = GetDriveLabel(drive);
+            var fullFill = NewBarFill();
+            var fullBar = NewBarGrid(fullFill, stretch: true);
+            var fullRow = new Grid { ColumnDefinitions = new ColumnDefinitions("90,*,38"), ClipToBounds = true };
+            fullRow.Children.Add(new TextBlock
+            {
+                Text = label,
+                FontSize = 8,
+                Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0xB7, 0x4D)),
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+            });
+            Grid.SetColumn(fullBar, 1);
+            fullRow.Children.Add(fullBar);
+            var fullPercent = NewPercentText();
+            Grid.SetColumn(fullPercent, 2);
+            fullRow.Children.Add(fullPercent);
+
+            var compactFill = NewBarFill();
+            var compactBar = NewBarGrid(compactFill, stretch: false);
+            var compactRow = new Grid { ColumnDefinitions = new ColumnDefinitions("58,68,42,48"), ClipToBounds = true };
+            compactRow.Children.Add(new TextBlock
+            {
+                Text = CompactDriveLabel(label),
+                FontSize = 9,
+                Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0xB7, 0x4D)),
+                FontWeight = FontWeight.SemiBold,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+            });
+            Grid.SetColumn(compactBar, 1);
+            compactRow.Children.Add(compactBar);
+            var compactPercent = NewPercentText();
+            Grid.SetColumn(compactPercent, 2);
+            compactRow.Children.Add(compactPercent);
+
+            FullDriveBarsHost.Children.Add(fullRow);
+            CompactDriveBarsHost.Children.Add(compactRow);
+            _driveDisplays.Add(new DriveDisplay
+            {
+                Drive = drive,
+                Key = drive.Name,
+                Label = label,
+                FullRow = fullRow,
+                FullBar = fullBar,
+                FullFill = fullFill,
+                CompactRow = compactRow,
+                CompactFill = compactFill,
+                CompactPercent = compactPercent,
+            });
+        }
+    }
+
+    private static bool IsUserDrive(DriveInfo drive)
+    {
+        try
+        {
+            if (!drive.IsReady || drive.TotalSize <= 0)
+                return false;
+            if (OperatingSystem.IsWindows())
+                return drive.DriveType is DriveType.Fixed or DriveType.Removable;
+            if (OperatingSystem.IsMacOS())
+                return drive.Name == "/" || drive.Name.StartsWith("/Volumes/", StringComparison.Ordinal);
+            return drive.DriveType is DriveType.Fixed or DriveType.Removable;
+        }
+        catch { return false; }
+    }
+
+    private static string GetDriveLabel(DriveInfo drive)
+    {
+        if (drive.Name == "/") return "Macintosh HD";
+        var trimmed = drive.Name.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var name = Path.GetFileName(trimmed);
+        return string.IsNullOrWhiteSpace(name) ? drive.Name : name;
+    }
+
+    private static string CompactDriveLabel(string label) => label.Length <= 8 ? label : label[..8];
+
+    private static Border NewBarFill() => new()
+    {
+        Background = new SolidColorBrush(Color.FromRgb(0xFF, 0xB7, 0x4D)),
+        CornerRadius = new CornerRadius(2),
+        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+        Width = 0,
+    };
+
+    private static Grid NewBarGrid(Border fill, bool stretch)
+    {
+        var grid = new Grid
+        {
+            Width = stretch ? double.NaN : 62,
+            Height = 4,
+            Margin = new Thickness(stretch ? 4 : 2, 0, 4, 0),
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            HorizontalAlignment = stretch
+                ? Avalonia.Layout.HorizontalAlignment.Stretch
+                : Avalonia.Layout.HorizontalAlignment.Left,
+            ClipToBounds = true,
+        };
+        grid.Children.Add(new Border { Background = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)), CornerRadius = new CornerRadius(2) });
+        grid.Children.Add(fill);
+        return grid;
+    }
+
+    private static TextBlock NewPercentText() => new()
+    {
+        Text = "—",
+        FontSize = 8,
+        Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0xDA, 0xA6)),
+        TextAlignment = TextAlignment.Right,
+        VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+    };
+
+    public bool IsDriveVisible(string driveKey) => _config.IsDriveVisible(driveKey);
+
+    public void SetDriveVisible(string driveKey, bool visible)
+    {
+        _config.SetDriveVisible(driveKey, visible);
+        UpdateDisk();
+        UpdateCompactSummary();
+        InvalidateMeasure();
+    }
+
+    private static bool TryReadCpuTimes(out ulong total, out ulong idle)
+    {
+        total = idle = 0;
+        if (OperatingSystem.IsMacOS())
+        {
+            var ticks = new uint[4];
+            var count = (uint)ticks.Length;
+            if (host_statistics(mach_host_self(), HostCpuLoadInfo, ticks, ref count) != 0 || count < 4)
+                return false;
+            total = ticks.Aggregate<uint, ulong>(0, (sum, value) => sum + value);
+            idle = ticks[CpuStateIdle];
+            return total > 0;
+        }
+
+        if (OperatingSystem.IsLinux())
+        {
+            try
+            {
+                var fields = File.ReadLines("/proc/stat").First().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                var values = fields.Skip(1).Select(ulong.Parse).ToArray();
+                total = values.Aggregate<ulong, ulong>(0, (sum, value) => sum + value);
+                idle = values.ElementAtOrDefault(3) + values.ElementAtOrDefault(4);
+                return total > 0;
+            }
+            catch { }
+        }
+        return false;
+    }
+
+    private static bool TryReadUnixMemory(out ulong usedBytes, out ulong totalBytes)
+    {
+        usedBytes = totalBytes = 0;
+        if (OperatingSystem.IsMacOS())
+        {
+            var stats = new uint[64];
+            var count = (uint)stats.Length;
+            if (host_statistics64(mach_host_self(), HostVmInfo64, stats, ref count) != 0 || count < 8)
+                return false;
+            var pageSize = (ulong)Environment.SystemPageSize;
+            // Inactive pages are reclaimable cache, so count them as available.
+            var freeBytes = (stats[0] + stats[2]) * pageSize;
+            var total = (ulong)GetMacPhysicalMemory();
+            if (total <= freeBytes) return false;
+            totalBytes = total;
+            usedBytes = total - freeBytes;
+            return true;
+        }
+
+        if (OperatingSystem.IsLinux())
+        {
+            try
+            {
+                var values = File.ReadLines("/proc/meminfo")
+                    .Select(line => line.Split(':', 2))
+                    .Where(parts => parts.Length == 2)
+                    .ToDictionary(parts => parts[0], parts => ulong.Parse(parts[1].Trim().Split(' ')[0]) * 1024);
+                totalBytes = values["MemTotal"];
+                var available = values.TryGetValue("MemAvailable", out var value) ? value : values.GetValueOrDefault("MemFree");
+                usedBytes = totalBytes - available;
+                return totalBytes > 0;
+            }
+            catch { }
+        }
+        return false;
+    }
+
+    private static long GetMacPhysicalMemory()
+    {
+        nuint length = sizeof(long);
+        return sysctlbyname("hw.memsize", out var memory, ref length, IntPtr.Zero, 0) == 0 ? memory : 0;
+    }
+
+    private const int HostCpuLoadInfo = 3;
+    private const int HostVmInfo64 = 4;
+    private const int CpuStateIdle = 2;
+
+    [DllImport("/usr/lib/libSystem.dylib")]
+    private static extern uint mach_host_self();
+
+    [DllImport("/usr/lib/libSystem.dylib")]
+    private static extern int host_statistics(uint host, int flavor, [Out] uint[] info, ref uint count);
+
+    [DllImport("/usr/lib/libSystem.dylib")]
+    private static extern int host_statistics64(uint host, int flavor, [Out] uint[] info, ref uint count);
+
+    [DllImport("/usr/lib/libSystem.dylib")]
+    private static extern int sysctlbyname(string name, out long oldValue, ref nuint oldLength, IntPtr newValue, nuint newLength);
 
     private void UpdateNetwork()
     {
@@ -604,6 +908,7 @@ public partial class UsagePopup : Window
             ApplyOpenRouter(status.OpenRouter);
             ApplyOpenAi(status.OpenAi);
             ApplyCodex(status.Codex);
+            ApplyCodex2(status.Codex2);
             ApplyClaude(status.Claude);
             ApplyClaude2(status.Claude2);
             ApplyZai(status.Zai);
@@ -615,6 +920,7 @@ public partial class UsagePopup : Window
     public bool IsProviderVisible(ProviderToggle toggle) => toggle switch
     {
         ProviderToggle.Codex => _config.ShowCodex,
+        ProviderToggle.Codex2 => _config.ShowCodex2,
         ProviderToggle.CodexSpark => _config.ShowCodexSpark,
         ProviderToggle.Claude => _config.ShowClaude,
         ProviderToggle.Claude2 => _config.ShowClaude2,
@@ -629,6 +935,7 @@ public partial class UsagePopup : Window
         switch (toggle)
         {
             case ProviderToggle.Codex: _config.ShowCodex = visible; break;
+            case ProviderToggle.Codex2: _config.ShowCodex2 = visible; break;
             case ProviderToggle.CodexSpark: _config.ShowCodexSpark = visible; break;
             case ProviderToggle.Claude: _config.ShowClaude = visible; break;
             case ProviderToggle.Claude2: _config.ShowClaude2 = visible; break;
@@ -647,6 +954,7 @@ public partial class UsagePopup : Window
         void Apply()
         {
             ApplyCodex(_lastStatus?.Codex);
+            ApplyCodex2(_lastStatus?.Codex2);
             ApplyClaude(_lastStatus?.Claude);
             ApplyClaude2(_lastStatus?.Claude2);
             ApplyZai(_lastStatus?.Zai);
@@ -669,6 +977,7 @@ public partial class UsagePopup : Window
         {
             OpenRouterSection,
             CodexSection,
+            Codex2Section,
             ClaudeCodeSection,
             ZaiSection,
             ClaudeCode2Section,
@@ -787,6 +1096,113 @@ public partial class UsagePopup : Window
             range += $" • Spark: {sparkPct}";
         }
         CodexRangeText.Text = range;
+    }
+
+    private void ApplyCodex2(CodexBlock? c)
+    {
+        // Absence is intentional: no auth/no successful data means no card or
+        // compact rows. The primary labels gain "1" only while account #2 is visible.
+        var show = c != null && _config.ShowCodex2;
+        Codex2Section.IsVisible = show;
+        CodexTitleText.Text = show ? "Codex #1" : "Codex";
+        CodexCompactFiveHourLabelText.Text = show ? "Codex1 5h" : "Codex 5h";
+        CodexCompactSevenDayLabelText.Text = show ? "Codex1 7d" : "Codex 7d";
+
+        if (!show || c == null)
+        {
+            _codex2FiveHourUsed = null;
+            _codex2SevenDayUsed = 0;
+            _codex2FiveHourExpected = null;
+            _codex2SevenDayExpected = null;
+            _codex2FiveHourReset = null;
+            _codex2SevenDayReset = null;
+            _codex2SparkFiveHourUsed = null;
+            _codex2SparkSevenDayUsed = null;
+            _codex2SparkFiveHourExpected = null;
+            _codex2SparkSevenDayExpected = null;
+            _codex2SparkFiveHourReset = null;
+            _codex2SparkSevenDayReset = null;
+            Codex2FiveHourLabel.IsVisible = false;
+            Codex2PrimaryBar.IsVisible = false;
+            Codex2SparkFiveHourLabel.IsVisible = false;
+            Codex2SparkPrimaryBar.IsVisible = false;
+            Codex2SparkSevenDayLabel.IsVisible = false;
+            Codex2SparkSecondaryBar.IsVisible = false;
+            return;
+        }
+
+        var fiveHour = c.Primary is { } primaryWindow
+            ? Math.Clamp(primaryWindow.UsedPercent, 0, 100)
+            : (double?)null;
+        var sevenDay = Math.Clamp(c.Secondary.UsedPercent, 0, 100);
+        if (fiveHour.HasValue)
+            SetTwoUsedExpectedInlines(Codex2CreditsText, fiveHour.Value, c.Primary!.ExpectedPercent, sevenDay, c.Secondary.ExpectedPercent);
+        else
+        {
+            SetUsedExpectedInlines(Codex2CreditsText, sevenDay, c.Secondary.ExpectedPercent);
+            Codex2CreditsText.Inlines!.Add(new Run(" used"));
+        }
+
+        _codex2FiveHourUsed = fiveHour;
+        _codex2SevenDayUsed = sevenDay;
+        _codex2FiveHourExpected = c.Primary?.ExpectedPercent;
+        _codex2SevenDayExpected = c.Secondary.ExpectedPercent;
+        _codex2FiveHourReset = c.Primary?.ResetsAt;
+        _codex2SevenDayReset = c.Secondary.ResetsAt;
+        Codex2FiveHourLabel.IsVisible = fiveHour.HasValue;
+        Codex2PrimaryBar.IsVisible = fiveHour.HasValue;
+        if (fiveHour.HasValue)
+            SetTargetBar(Codex2PrimaryBar, fiveHour.Value, _codex2FiveHourExpected);
+        SetTargetBar(Codex2SecondaryBar, sevenDay, _codex2SevenDayExpected);
+
+        var showSparkFiveHour = c.SparkPrimary != null && _config.ShowCodexSpark;
+        var showSparkSevenDay = c.SparkSecondary != null && _config.ShowCodexSpark;
+        Codex2SparkFiveHourLabel.IsVisible = showSparkFiveHour;
+        Codex2SparkPrimaryBar.IsVisible = showSparkFiveHour;
+        Codex2SparkSevenDayLabel.IsVisible = showSparkSevenDay;
+        Codex2SparkSecondaryBar.IsVisible = showSparkSevenDay;
+
+        if (showSparkFiveHour && c.SparkPrimary is { } sparkFiveHour)
+        {
+            _codex2SparkFiveHourUsed = Math.Clamp(sparkFiveHour.UsedPercent, 0, 100);
+            _codex2SparkFiveHourExpected = sparkFiveHour.ExpectedPercent;
+            _codex2SparkFiveHourReset = sparkFiveHour.ResetsAt;
+            SetTargetBar(Codex2SparkPrimaryBar, _codex2SparkFiveHourUsed.Value, _codex2SparkFiveHourExpected);
+        }
+        else
+        {
+            _codex2SparkFiveHourUsed = null;
+            _codex2SparkFiveHourExpected = null;
+            _codex2SparkFiveHourReset = null;
+        }
+
+        if (showSparkSevenDay && c.SparkSecondary is { } sparkSevenDay)
+        {
+            _codex2SparkSevenDayUsed = Math.Clamp(sparkSevenDay.UsedPercent, 0, 100);
+            _codex2SparkSevenDayExpected = sparkSevenDay.ExpectedPercent;
+            _codex2SparkSevenDayReset = sparkSevenDay.ResetsAt;
+            SetTargetBar(Codex2SparkSecondaryBar, _codex2SparkSevenDayUsed.Value, _codex2SparkSevenDayExpected);
+        }
+        else
+        {
+            _codex2SparkSevenDayUsed = null;
+            _codex2SparkSevenDayExpected = null;
+            _codex2SparkSevenDayReset = null;
+        }
+
+        var range = fiveHour.HasValue
+            ? $"5h: in {FormatResetCountdown(c.Primary!.ResetsAt)} • 7d: {FormatResetDate(c.Secondary.ResetsAt)}"
+            : $"7d: {FormatResetDate(c.Secondary.ResetsAt)}";
+        if (showSparkFiveHour || showSparkSevenDay)
+        {
+            var sparkPercent = _codex2SparkFiveHourUsed.HasValue && _codex2SparkSevenDayUsed.HasValue
+                ? $"{_codex2SparkFiveHourUsed.Value:F0}% / {_codex2SparkSevenDayUsed.Value:F0}%"
+                : _codex2SparkFiveHourUsed.HasValue
+                    ? $"{_codex2SparkFiveHourUsed.Value:F0}%"
+                    : $"{_codex2SparkSevenDayUsed!.Value:F0}%";
+            range += $" • Spark: {sparkPercent}";
+        }
+        Codex2RangeText.Text = range;
     }
 
     private void ApplyClaude(ClaudeBlock? c)
@@ -993,9 +1409,7 @@ public partial class UsagePopup : Window
             return;
 
         // System one-liners
-        CpuCompactText.Text = CpuPercentText.Text;
-        MemoryCompactText.Text = MemoryText.Text;
-        DiskCompactText.Text = DiskText.Text;
+        UpdateCompactSystemBars();
         UptimeCompactText.Text = UptimeText.Text;
         NetCompactText.Text = $"{NetworkUpText.Text}  {NetworkDownText.Text}";
 
@@ -1003,6 +1417,7 @@ public partial class UsagePopup : Window
         OpenRouterCompactSection.IsVisible = OpenRouterSection.IsVisible;
         OpenAiCompactRow.IsVisible = OpenAiRow.IsVisible;
         CodexCompactSection.IsVisible = CodexSection.IsVisible;
+        Codex2CompactSection.IsVisible = Codex2Section.IsVisible;
         ClaudeCompactSection.IsVisible = ClaudeCodeSection.IsVisible;
         Claude2CompactSection.IsVisible = ClaudeCode2Section.IsVisible;
         ZaiCompactSection.IsVisible = ZaiSection.IsVisible;
@@ -1036,6 +1451,35 @@ public partial class UsagePopup : Window
             RenderCompactBar(CodexCompactSpark7dBar, CodexCompactSpark7dTick, Color.FromRgb(0x4D, 0xB6, 0xAC), _codexSpark7dUsed.Value, _codexSpark7dExpected, barWidth);
             SetUsedExpectedInlines(CodexCompactSpark7dPct, _codexSpark7dUsed, _codexSpark7dExpected);
             CodexCompactSpark7dReset.Text = _codexSpark7dReset.HasValue ? FormatResetDate(_codexSpark7dReset) : "";
+        }
+
+        Codex2CompactFiveHourRow.IsVisible = _codex2FiveHourUsed.HasValue;
+        if (Codex2Section.IsVisible)
+        {
+            if (_codex2FiveHourUsed.HasValue)
+            {
+                RenderCompactBar(Codex2CompactFiveHourBar, Codex2CompactFiveHourTick, Color.FromRgb(0x64, 0xB5, 0xF6), _codex2FiveHourUsed.Value, _codex2FiveHourExpected, barWidth);
+                SetUsedExpectedInlines(Codex2CompactFiveHourPercent, _codex2FiveHourUsed, _codex2FiveHourExpected);
+                Codex2CompactFiveHourReset.Text = _codex2FiveHourReset.HasValue ? $"in {FormatResetCountdown(_codex2FiveHourReset)}" : "";
+            }
+            RenderCompactBar(Codex2CompactSevenDayBar, Codex2CompactSevenDayTick, Color.FromRgb(0x90, 0xCA, 0xF9), _codex2SevenDayUsed, _codex2SevenDayExpected, barWidth);
+            SetUsedExpectedInlines(Codex2CompactSevenDayPercent, _codex2SevenDayUsed, _codex2SevenDayExpected);
+            Codex2CompactSevenDayReset.Text = _codex2SevenDayReset.HasValue ? FormatResetDate(_codex2SevenDayReset) : "";
+        }
+
+        Codex2CompactSparkFiveHourRow.IsVisible = _codex2SparkFiveHourUsed.HasValue && Codex2Section.IsVisible;
+        if (_codex2SparkFiveHourUsed.HasValue && Codex2Section.IsVisible)
+        {
+            RenderCompactBar(Codex2CompactSparkFiveHourBar, Codex2CompactSparkFiveHourTick, Color.FromRgb(0x95, 0x75, 0xCD), _codex2SparkFiveHourUsed.Value, _codex2SparkFiveHourExpected, barWidth);
+            SetUsedExpectedInlines(Codex2CompactSparkFiveHourPercent, _codex2SparkFiveHourUsed, _codex2SparkFiveHourExpected);
+            Codex2CompactSparkFiveHourReset.Text = _codex2SparkFiveHourReset.HasValue ? $"in {FormatResetCountdown(_codex2SparkFiveHourReset)}" : "";
+        }
+        Codex2CompactSparkSevenDayRow.IsVisible = _codex2SparkSevenDayUsed.HasValue && Codex2Section.IsVisible;
+        if (_codex2SparkSevenDayUsed.HasValue && Codex2Section.IsVisible)
+        {
+            RenderCompactBar(Codex2CompactSparkSevenDayBar, Codex2CompactSparkSevenDayTick, Color.FromRgb(0xB3, 0x9D, 0xDB), _codex2SparkSevenDayUsed.Value, _codex2SparkSevenDayExpected, barWidth);
+            SetUsedExpectedInlines(Codex2CompactSparkSevenDayPercent, _codex2SparkSevenDayUsed, _codex2SparkSevenDayExpected);
+            Codex2CompactSparkSevenDayReset.Text = _codex2SparkSevenDayReset.HasValue ? FormatResetDate(_codex2SparkSevenDayReset) : "";
         }
 
         RenderCompactBar(ClaudeCompact5hBar, ClaudeCompact5hTick, Color.FromRgb(0xFF, 0x8A, 0x65), _claude5hUsed, _claude5hExpected, barWidth);

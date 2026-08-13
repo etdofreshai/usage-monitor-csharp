@@ -108,6 +108,27 @@ public partial class App : Application
                 trayMenu.Items.Add(providerItem);
             }
 
+            if (_popup.DriveToggles.Count > 0)
+            {
+                trayMenu.Items.Add(new NativeMenuItemSeparator());
+                trayMenu.Items.Add(new NativeMenuItem("Drives") { IsEnabled = false });
+                foreach (var drive in _popup.DriveToggles)
+                {
+                    var driveKey = drive.Key;
+                    var driveItem = new NativeMenuItem(drive.Label)
+                    {
+                        ToggleType = NativeMenuItemToggleType.CheckBox,
+                        IsChecked = _popup.IsDriveVisible(driveKey),
+                    };
+                    driveItem.Click += (s, e) => Dispatcher.UIThread.Post(() =>
+                    {
+                        _popup.SetDriveVisible(driveKey, !_popup.IsDriveVisible(driveKey));
+                        driveItem.IsChecked = _popup.IsDriveVisible(driveKey);
+                    });
+                    trayMenu.Items.Add(driveItem);
+                }
+            }
+
             trayMenu.Items.Add(new NativeMenuItemSeparator());
 
             var quitItem = new NativeMenuItem("Quit");
