@@ -450,7 +450,8 @@ public partial class UsagePopup : Window
             var success = await _updateChecker.ApplyUpdateAsync();
             if (success)
             {
-                UpdateChecker.RestartApp();
+                if (!_updateChecker.RestartScheduled)
+                    UpdateChecker.RestartApp();
                 ForceClose();
             }
         }

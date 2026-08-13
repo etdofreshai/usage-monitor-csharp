@@ -23,6 +23,11 @@ public class UpdateChecker : IDisposable
     private int _applyInFlight;
 
     public bool UpdateAvailable { get; private set; }
+    /// <summary>
+    /// True after a macOS bundle swap helper has been launched. The caller should
+    /// close the current app but must not start the old executable again.
+    /// </summary>
+    public bool RestartScheduled { get; private set; }
     public string? RemoteSha { get; private set; }
     public DateTimeOffset? RemoteDate { get; private set; }
 
@@ -101,7 +106,28 @@ public class UpdateChecker : IDisposable
 
         try
         {
+            RestartScheduled = false;
             await RunGitAsync("pull", "--ff-only", "origin", "main");
+
+            if (OperatingSystem.IsMacOS() && TryGetCurrentAppBundlePath(out var installedApp))
+            {
+                // A plain `dotnet build` only updates the checkout. Build the
+                // signed release bundle first, then let a short-lived external
+                // helper replace this app after this process exits.
+                var packagingScript = Path.Combine(_repoPath!, "build-macos-app.sh");
+                if (!File.Exists(packagingScript))
+                    throw new FileNotFoundException("macOS packaging script was not found", packagingScript);
+
+                await RunCommandAsync("/bin/bash", new[] { packagingScript, "--no-install" });
+                var stagedApp = Path.Combine(_repoPath!, "dist", "UsageMonitor.app");
+                if (!File.Exists(Path.Combine(stagedApp, "Contents", "MacOS", "UsageMonitor")))
+                    throw new InvalidOperationException("macOS update bundle was not produced");
+
+                ScheduleMacBundleSwap(installedApp, stagedApp);
+                RestartScheduled = true;
+                return true;
+            }
+
             await RunCommandAsync(ResolveDotnetExecutable(), new[] { "build", "-c", "Debug" });
             return true;
         }
@@ -137,6 +163,93 @@ public class UpdateChecker : IDisposable
             AppLog.WriteLine($"UpdateChecker restart failed: {ex.Message}");
         }
     }
+
+    private static bool TryGetCurrentAppBundlePath(out string appPath)
+    {
+        appPath = string.Empty;
+        var executable = Process.GetCurrentProcess().MainModule?.FileName ?? Environment.ProcessPath;
+        const string marker = ".app/Contents/MacOS/";
+        var markerIndex = executable?.IndexOf(marker, StringComparison.Ordinal) ?? -1;
+        if (markerIndex < 0)
+            return false;
+
+        appPath = executable![..(markerIndex + 4)];
+        return Directory.Exists(appPath);
+    }
+
+    private static void ScheduleMacBundleSwap(string installedApp, string stagedApp)
+    {
+        var scriptPath = Path.Combine(
+            Path.GetTempPath(),
+            $"usage-monitor-update-{Environment.ProcessId}-{Guid.NewGuid():N}.sh");
+        File.WriteAllText(scriptPath, MacBundleSwapScript);
+        if (!OperatingSystem.IsWindows())
+            File.SetUnixFileMode(scriptPath, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+
+        var psi = new ProcessStartInfo("/bin/bash")
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        psi.ArgumentList.Add(scriptPath);
+        psi.ArgumentList.Add(Environment.ProcessId.ToString());
+        psi.ArgumentList.Add(installedApp);
+        psi.ArgumentList.Add(stagedApp);
+        psi.ArgumentList.Add(AppLog.GetLogPath());
+
+        if (Process.Start(psi) is null)
+            throw new InvalidOperationException("Failed to launch the macOS update helper");
+
+        AppLog.WriteLine($"Update staged; helper will replace {installedApp} after process exit.");
+    }
+
+    private const string MacBundleSwapScript = """
+        #!/bin/bash
+        set -euo pipefail
+
+        pid="$1"
+        target="$2"
+        staged="$3"
+        log="$4"
+        temp="${target}.updating-$$"
+        backup="${target}.backup-$$"
+
+        log_line() {
+          printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S %z')" "$1" >> "$log"
+        }
+
+        cleanup() {
+          rm -rf "$temp" "$backup"
+          rm -f "$0"
+        }
+        trap cleanup EXIT
+
+        for _ in {1..100}; do
+          if ! kill -0 "$pid" 2>/dev/null; then break; fi
+          sleep 0.1
+        done
+        if kill -0 "$pid" 2>/dev/null; then
+          log_line "Update helper timed out waiting for the previous app process to exit."
+          exit 1
+        fi
+
+        rm -rf "$temp" "$backup"
+        ditto "$staged" "$temp"
+        test -x "$temp/Contents/MacOS/UsageMonitor"
+        codesign --verify --deep --strict "$temp"
+
+        if [[ -d "$target" ]]; then mv "$target" "$backup"; fi
+        if ! mv "$temp" "$target"; then
+          if [[ -d "$backup" ]]; then mv "$backup" "$target"; fi
+          log_line "Update helper could not install the new app bundle; restored the previous bundle."
+          exit 1
+        fi
+        rm -rf "$backup"
+        xattr -dr com.apple.quarantine "$target" 2>/dev/null || true
+        codesign --force --deep --sign - "$target"
+        log_line "Installed updated Usage Monitor bundle; launching it now."
+        open -n "$target" --args --from-restart
+        """;
 
     private Task<string> RunGitAsync(params string[] args) => RunCommandAsync("git", args);
 
