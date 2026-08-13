@@ -134,6 +134,7 @@ public partial class UsagePopup : Window
 
     // Auto-update checker
     private UpdateChecker? _updateChecker;
+    private bool _updateAvailable;
 
     // Last successful usage snapshot, retained so provider show/hide toggles can
     // re-render visibility immediately without waiting for the next poll.
@@ -231,9 +232,8 @@ public partial class UsagePopup : Window
         _updateChecker = new UpdateChecker(_config.RepoPath);
         _updateChecker.UpdateDetected += (s, e) => Dispatcher.UIThread.Post(() =>
         {
-            UpdateButton.IsVisible = true;
-            UpdateButtonCompact.IsVisible = true;
-            IconOnlyUpdateDot.IsVisible = true;
+            _updateAvailable = true;
+            UpdateUpdateAffordances();
         });
         _updateChecker.Start();
 
@@ -1395,6 +1395,13 @@ public partial class UsagePopup : Window
         ZaiTokenText.Text = string.Join(" • ", resetParts);
     }
 
+    private void UpdateUpdateAffordances()
+    {
+        UpdateButton.IsVisible = _updateAvailable && _viewMode == PopupViewMode.Full;
+        UpdateButtonCompact.IsVisible = _updateAvailable && _viewMode == PopupViewMode.Compact;
+        IconOnlyUpdateDot.IsVisible = _updateAvailable && _viewMode == PopupViewMode.IconOnly;
+    }
+
     private void SetViewMode(PopupViewMode mode, bool anchorBottomRight = true)
     {
         // Capture current bottom-right pixel position before resizing
@@ -1412,6 +1419,7 @@ public partial class UsagePopup : Window
         CompactButton.IsVisible = mode == PopupViewMode.Full;
         IconOnlyButton.IsVisible = mode == PopupViewMode.Full;
         CloseButton.IsVisible = mode == PopupViewMode.Full;
+        UpdateUpdateAffordances();
 
         // Full mode: outer border visible; compact/icon: transparent wrapper
         if (mode == PopupViewMode.Full)
