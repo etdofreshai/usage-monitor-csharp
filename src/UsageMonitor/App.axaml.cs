@@ -53,6 +53,41 @@ public partial class App : Application
             showItem.Click += (s, e) => Dispatcher.UIThread.Post(() => _popup.TogglePopup());
             trayMenu.Items.Add(showItem);
 
+            var checkForUpdatesItem = new NativeMenuItem("Check for Updates");
+            checkForUpdatesItem.Click += async (s, e) =>
+            {
+                checkForUpdatesItem.IsEnabled = false;
+                checkForUpdatesItem.Header = "Checking for Updates…";
+                try
+                {
+                    var result = await _popup.CheckForUpdatesAsync();
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        checkForUpdatesItem.Header = result switch
+                        {
+                            UpdateChecker.CheckResult.UpdateAvailable => "Update Ready — Open Monitor",
+                            UpdateChecker.CheckResult.UpToDate => "Up to Date",
+                            UpdateChecker.CheckResult.Disabled => "Update Checks Unavailable",
+                            UpdateChecker.CheckResult.Failed => "Update Check Failed",
+                            _ => "Already Checking for Updates",
+                        };
+                        checkForUpdatesItem.IsEnabled = true;
+                        if (result == UpdateChecker.CheckResult.UpdateAvailable)
+                            _popup.ShowPopup();
+                    });
+                }
+                catch (Exception ex)
+                {
+                    AppLog.WriteLine($"Manual update check failed: {ex.Message}");
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        checkForUpdatesItem.Header = "Update Check Failed";
+                        checkForUpdatesItem.IsEnabled = true;
+                    });
+                }
+            };
+            trayMenu.Items.Add(checkForUpdatesItem);
+
             trayMenu.Items.Add(new NativeMenuItemSeparator());
 
             // "Run on system start" toggle — only shown on platforms we support.

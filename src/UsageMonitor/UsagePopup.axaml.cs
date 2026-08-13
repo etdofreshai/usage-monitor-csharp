@@ -463,6 +463,12 @@ public partial class UsagePopup : Window
         }
     }
 
+    // Shared by the automatic timer and the tray-menu command. The caller uses
+    // the result for feedback; UpdateDetected still reveals the normal update
+    // buttons whenever a newer build is found.
+    public Task<UpdateChecker.CheckResult> CheckForUpdatesAsync() =>
+        _updateChecker?.CheckAsync() ?? Task.FromResult(UpdateChecker.CheckResult.Disabled);
+
     private void PositionNearTaskbar(double? targetWidth = null, double? targetHeight = null)
     {
         if (Screens.Primary is { } screen)

@@ -5,6 +5,15 @@ namespace UsageMonitor.Services;
 
 public class UpdateChecker : IDisposable
 {
+    public enum CheckResult
+    {
+        Disabled,
+        AlreadyChecking,
+        UpToDate,
+        UpdateAvailable,
+        Failed,
+    }
+
     private static readonly TimeSpan InitialDelay = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan CheckInterval = TimeSpan.FromMinutes(30);
 
@@ -35,17 +44,17 @@ public class UpdateChecker : IDisposable
 
     private void OnTimerTick(object? state) => _ = CheckAsync();
 
-    public async Task CheckAsync()
+    public async Task<CheckResult> CheckAsync()
     {
-        if (!Enabled) return;
-        if (Interlocked.Exchange(ref _checkInFlight, 1) == 1) return;
+        if (!Enabled) return CheckResult.Disabled;
+        if (Interlocked.Exchange(ref _checkInFlight, 1) == 1) return CheckResult.AlreadyChecking;
         try
         {
             await RunGitAsync("fetch", "origin", "main");
             var sha = (await RunGitAsync("rev-parse", "--short", "origin/main")).Trim();
             var dateStr = (await RunGitAsync("log", "-1", "--format=%cI", "origin/main")).Trim();
-            if (string.IsNullOrEmpty(sha)) return;
-            if (!DateTimeOffset.TryParse(dateStr, out var remoteDate)) return;
+            if (string.IsNullOrEmpty(sha)) return CheckResult.Failed;
+            if (!DateTimeOffset.TryParse(dateStr, out var remoteDate)) return CheckResult.Failed;
 
             var localSha = (BuildInfo.CommitSha ?? "").Trim();
             DateTimeOffset.TryParse(BuildInfo.BuildDate, out var localBuildDate);
@@ -62,11 +71,18 @@ public class UpdateChecker : IDisposable
                     UpdateAvailable = true;
                     UpdateDetected?.Invoke(this, EventArgs.Empty);
                 }
+                return CheckResult.UpdateAvailable;
             }
+
+            UpdateAvailable = false;
+            RemoteSha = null;
+            RemoteDate = null;
+            return CheckResult.UpToDate;
         }
         catch (Exception ex)
         {
             AppLog.WriteLine($"UpdateChecker error: {ex.Message}");
+            return CheckResult.Failed;
         }
         finally
         {
