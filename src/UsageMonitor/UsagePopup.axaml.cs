@@ -63,6 +63,8 @@ public partial class UsagePopup : Window
     private bool _hasCpuSample;
     private double _cpuPercent;
     private double _memoryPercent;
+    private double _memoryUsedGB;
+    private double _memoryTotalGB;
 
     public sealed record DriveToggle(string Key, string Label);
 
@@ -74,9 +76,11 @@ public partial class UsagePopup : Window
         public required Grid FullRow { get; init; }
         public required Grid FullBar { get; init; }
         public required Border FullFill { get; init; }
+        public required TextBlock FullUsage { get; init; }
         public required Grid CompactRow { get; init; }
         public required Border CompactFill { get; init; }
         public required TextBlock CompactPercent { get; init; }
+        public required TextBlock CompactUsage { get; init; }
     }
 
     private readonly List<DriveDisplay> _driveDisplays = new();
@@ -536,6 +540,7 @@ public partial class UsagePopup : Window
         _cpuPercent = Math.Clamp(cpuPercent, 0, 100);
         SetPlainBar(CpuBar, CpuBarFill, _cpuPercent);
         CpuPercentText.Text = $"{cpuPercent:F0}%";
+        CpuDetailsText.Text = $"{Environment.ProcessorCount} logical cores";
         UpdateCompactSystemBars();
     }
 
@@ -586,6 +591,9 @@ public partial class UsagePopup : Window
                 SetPlainBar(display.FullBar, display.FullFill, percent);
                 display.CompactFill.Width = percent / 100.0 * 62.0;
                 display.CompactPercent.Text = $"{percent:F0}%";
+                var usedBytes = display.Drive.TotalSize - display.Drive.AvailableFreeSpace;
+                display.FullUsage.Text = FormatDriveUsage(usedBytes, display.Drive.TotalSize, compact: false);
+                display.CompactUsage.Text = FormatDriveUsage(usedBytes, display.Drive.TotalSize, compact: true);
             }
             DriveSection.IsVisible = _driveDisplays.Any(d => d.FullRow.IsVisible);
         }
@@ -595,6 +603,8 @@ public partial class UsagePopup : Window
     private void SetMemoryDisplay(double usedGB, double totalGB, double percent)
     {
         _memoryPercent = Math.Clamp(percent, 0, 100);
+        _memoryUsedGB = usedGB;
+        _memoryTotalGB = totalGB;
         SetPlainBar(MemoryBar, MemoryBarFill, _memoryPercent);
         MemoryPercentText.Text = $"{_memoryPercent:F0}%";
         MemoryText.Text = $"{usedGB:F1} / {totalGB:F1} GB";
@@ -615,6 +625,10 @@ public partial class UsagePopup : Window
         MemoryCompactBar.Width = _memoryPercent / 100.0 * barWidth;
         CpuCompactText.Text = $"{_cpuPercent:F0}%";
         MemoryCompactText.Text = $"{_memoryPercent:F0}%";
+        CpuCompactDetailsText.Text = $"{Environment.ProcessorCount}c";
+        MemoryCompactDetailsText.Text = _memoryTotalGB > 0
+            ? $"{_memoryUsedGB:F0}/{_memoryTotalGB:F0}G"
+            : "—";
     }
 
     private void InitializeDriveDisplays()
@@ -631,7 +645,7 @@ public partial class UsagePopup : Window
             var label = GetDriveLabel(drive);
             var fullFill = NewBarFill();
             var fullBar = NewBarGrid(fullFill, stretch: true);
-            var fullRow = new Grid { ColumnDefinitions = new ColumnDefinitions("90,*,38"), ClipToBounds = true };
+            var fullRow = new Grid { ColumnDefinitions = new ColumnDefinitions("84,*,106"), ClipToBounds = true };
             fullRow.Children.Add(new TextBlock
             {
                 Text = label,
@@ -642,9 +656,9 @@ public partial class UsagePopup : Window
             });
             Grid.SetColumn(fullBar, 1);
             fullRow.Children.Add(fullBar);
-            var fullPercent = NewPercentText();
-            Grid.SetColumn(fullPercent, 2);
-            fullRow.Children.Add(fullPercent);
+            var fullUsage = NewUsageText();
+            Grid.SetColumn(fullUsage, 2);
+            fullRow.Children.Add(fullUsage);
 
             var compactFill = NewBarFill();
             var compactBar = NewBarGrid(compactFill, stretch: false);
@@ -663,6 +677,9 @@ public partial class UsagePopup : Window
             var compactPercent = NewPercentText();
             Grid.SetColumn(compactPercent, 2);
             compactRow.Children.Add(compactPercent);
+            var compactUsage = NewUsageText(fontSize: 7);
+            Grid.SetColumn(compactUsage, 3);
+            compactRow.Children.Add(compactUsage);
 
             FullDriveBarsHost.Children.Add(fullRow);
             CompactDriveBarsHost.Children.Add(compactRow);
@@ -674,9 +691,11 @@ public partial class UsagePopup : Window
                 FullRow = fullRow,
                 FullBar = fullBar,
                 FullFill = fullFill,
+                FullUsage = fullUsage,
                 CompactRow = compactRow,
                 CompactFill = compactFill,
                 CompactPercent = compactPercent,
+                CompactUsage = compactUsage,
             });
         }
     }
@@ -740,6 +759,30 @@ public partial class UsagePopup : Window
         TextAlignment = TextAlignment.Right,
         VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
     };
+
+    private static TextBlock NewUsageText(double fontSize = 8) => new()
+    {
+        Text = "—",
+        FontSize = fontSize,
+        Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0xDA, 0xA6)),
+        TextAlignment = TextAlignment.Right,
+        VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+        TextTrimming = TextTrimming.CharacterEllipsis,
+    };
+
+    private static string FormatDriveUsage(long usedBytes, long totalBytes, bool compact)
+    {
+        const double gibibyte = 1024d * 1024 * 1024;
+        const double tebibyte = 1024d * 1024 * 1024 * 1024;
+        if (totalBytes >= tebibyte)
+            return compact
+                ? $"{usedBytes / tebibyte:F1}/{totalBytes / tebibyte:F1}T"
+                : $"{usedBytes / tebibyte:F1} / {totalBytes / tebibyte:F1} TB";
+
+        return compact
+            ? $"{usedBytes / gibibyte:F0}/{totalBytes / gibibyte:F0}G"
+            : $"{usedBytes / gibibyte:F0} / {totalBytes / gibibyte:F0} GB";
+    }
 
     public bool IsDriveVisible(string driveKey) => _config.IsDriveVisible(driveKey);
 
