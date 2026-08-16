@@ -48,6 +48,7 @@ public class Config
     public bool ShowClaudeDesign { get; set; } = true;
     public bool ShowClaude2Design { get; set; } = true;
     public bool ShowZai { get; set; } = true;
+    public bool ShowZaiRequests { get; set; } = true;
 
     // Per-drive visibility, keyed by the drive root/mount path. Missing entries
     // default to visible so newly attached fixed drives appear automatically.
@@ -66,6 +67,12 @@ public class Config
                 var config = JsonSerializer.Deserialize<Config>(json);
                 if (config != null)
                 {
+                    // Before this setting existed, ShowZai controlled both token usage
+                    // and the unrelated Web/MCP request allowance. Preserve that intent
+                    // for existing configs instead of unexpectedly re-enabling requests.
+                    var root = JsonNode.Parse(json) as JsonObject;
+                    if (root is null || !root.ContainsKey(nameof(ShowZaiRequests)))
+                        config.ShowZaiRequests = config.ShowZai;
                     OverrideFromEnv(config);
                     return config;
                 }
@@ -106,6 +113,7 @@ public class Config
         ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_CLAUDE_DESIGN", nameof(ShowClaudeDesign), v => config.ShowClaudeDesign = v);
         ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_CLAUDE2_DESIGN", nameof(ShowClaude2Design), v => config.ShowClaude2Design = v);
         ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_ZAI", nameof(ShowZai), v => config.ShowZai = v);
+        ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_ZAI_REQUESTS", nameof(ShowZaiRequests), v => config.ShowZaiRequests = v);
     }
 
     private static void ApplyFlagEnv(Config config, string envVar, string propertyName, Action<bool> set)

@@ -141,7 +141,7 @@ public partial class UsagePopup : Window
     private UsageApiStatus? _lastStatus;
 
     // Provider visibility toggles surfaced (in this order) in the tray "Providers" menu.
-    public enum ProviderToggle { Codex, Codex2, CodexSpark, Claude, Claude2, ClaudeDesign, Claude2Design, Zai }
+    public enum ProviderToggle { Codex, Codex2, CodexSpark, Claude, Claude2, ClaudeDesign, Claude2Design, Zai, ZaiRequests }
 
     public static readonly IReadOnlyList<(ProviderToggle Key, string Label)> ProviderToggles = new[]
     {
@@ -151,7 +151,8 @@ public partial class UsagePopup : Window
         (ProviderToggle.Claude2, "Claude2"),
         (ProviderToggle.ClaudeDesign, "Claude Design"),
         (ProviderToggle.Claude2Design, "Claude2 Design"),
-        (ProviderToggle.Zai, "Z.ai"),
+        (ProviderToggle.Zai, "Z.ai Token Usage"),
+        (ProviderToggle.ZaiRequests, "Z.ai Web/MCP Requests"),
     };
 
     public UsagePopup()
@@ -977,6 +978,7 @@ public partial class UsagePopup : Window
         ProviderToggle.ClaudeDesign => _config.ShowClaudeDesign,
         ProviderToggle.Claude2Design => _config.ShowClaude2Design,
         ProviderToggle.Zai => _config.ShowZai,
+        ProviderToggle.ZaiRequests => _config.ShowZaiRequests,
         _ => true,
     };
 
@@ -992,6 +994,7 @@ public partial class UsagePopup : Window
             case ProviderToggle.ClaudeDesign: _config.ShowClaudeDesign = visible; break;
             case ProviderToggle.Claude2Design: _config.ShowClaude2Design = visible; break;
             case ProviderToggle.Zai: _config.ShowZai = visible; break;
+            case ProviderToggle.ZaiRequests: _config.ShowZaiRequests = visible; break;
         }
         _config.Save();
         ReapplyProviderVisibility();
@@ -1350,25 +1353,37 @@ public partial class UsagePopup : Window
 
     private void ApplyZai(ZaiBlock? z)
     {
-        var show = z != null && _config.ShowZai;
+        var showTokens = z?.FiveHour != null && _config.ShowZai;
+        var showRequests = z?.Monthly != null && _config.ShowZaiRequests;
+        var show = showTokens || showRequests;
         ZaiSection.IsVisible = show;
-        if (!show || z == null) return;
+        _zai5hPercent = showTokens ? z!.FiveHour?.UsedPercent : null;
+        _zai5hReset = showTokens ? z!.FiveHour?.ResetsAt : null;
+        _zai5hExpected = showTokens ? z!.FiveHour?.ExpectedPercent : null;
+        _zaiMoPercent = showRequests ? z!.Monthly?.UsedPercent : null;
+        _zaiMoReset = showRequests ? z!.Monthly?.ResetsAt : null;
+        _zaiMoExpected = showRequests ? z!.Monthly?.ExpectedPercent : null;
 
-        _zai5hPercent = z.FiveHour?.UsedPercent;
-        _zai5hReset = z.FiveHour?.ResetsAt;
-        _zai5hExpected = z.FiveHour?.ExpectedPercent;
-        _zaiMoPercent = z.Monthly?.UsedPercent;
-        _zaiMoReset = z.Monthly?.ResetsAt;
-        _zaiMoExpected = z.Monthly?.ExpectedPercent;
+        ZaiTokenLabel.IsVisible = showTokens;
+        ZaiTokenBar.IsVisible = showTokens;
+        if (showTokens)
+            SetTargetBar(ZaiTokenBar, z!.FiveHour!.UsedPercent, _zai5hExpected);
 
-        ZaiTokenBar.IsVisible = z.FiveHour != null;
-        if (z.FiveHour != null)
-            SetTargetBar(ZaiTokenBar, z.FiveHour.UsedPercent, _zai5hExpected);
+        ZaiRequestsLabel.IsVisible = showRequests;
+        ZaiMonthlyBar.IsVisible = showRequests;
+        if (showRequests)
+            SetTargetBar(ZaiMonthlyBar, z!.Monthly!.UsedPercent, _zaiMoExpected);
+        ZaiDetailText.IsVisible = showRequests && z!.MonthlyCurrent.HasValue && z.MonthlyLimit.HasValue;
+        ZaiDetailText.Text = ZaiDetailText.IsVisible
+            ? $"{z!.MonthlyCurrent:N0} / {z.MonthlyLimit:N0} Web/MCP requests this month"
+            : "";
 
-        ZaiMonthlyBar.IsVisible = z.Monthly != null;
-        if (z.Monthly != null)
-            SetTargetBar(ZaiMonthlyBar, z.Monthly.UsedPercent, _zaiMoExpected);
-        ZaiDetailText.IsVisible = false;
+        if (!show || z == null)
+        {
+            ZaiCreditsText.Text = "—";
+            ZaiResetText.Text = "";
+            return;
+        }
 
         ZaiCreditsText.Inlines!.Clear();
         bool zaiAnyHeader = false;
@@ -1382,7 +1397,7 @@ public partial class UsagePopup : Window
         if (_zaiMoPercent.HasValue)
         {
             if (zaiAnyHeader) ZaiCreditsText.Inlines.Add(new Run(" • "));
-            ZaiCreditsText.Inlines.Add(new Run($"Mo {_zaiMoPercent.Value:F0}%"));
+            ZaiCreditsText.Inlines.Add(new Run($"Requests {_zaiMoPercent.Value:F0}%"));
             if (_zaiMoExpected.HasValue)
                 ZaiCreditsText.Inlines.Add(ExpectedRun($" {_zaiMoExpected.Value:F0}%", ZaiCreditsText.FontSize, _zaiMoPercent.Value, _zaiMoExpected));
             zaiAnyHeader = true;
@@ -1392,8 +1407,8 @@ public partial class UsagePopup : Window
 
         var resetParts = new List<string>();
         if (_zai5hReset.HasValue) resetParts.Add($"5h: in {FormatResetCountdown(_zai5hReset)}");
-        if (_zaiMoReset.HasValue) resetParts.Add($"Mo: {FormatResetDate(_zaiMoReset)}");
-        ZaiTokenText.Text = string.Join(" • ", resetParts);
+        if (_zaiMoReset.HasValue) resetParts.Add($"Requests: {FormatResetDate(_zaiMoReset)}");
+        ZaiResetText.Text = string.Join(" • ", resetParts);
     }
 
     private void UpdateUpdateAffordances()
@@ -1479,6 +1494,8 @@ public partial class UsagePopup : Window
         ClaudeCompactSection.IsVisible = ClaudeCodeSection.IsVisible;
         Claude2CompactSection.IsVisible = ClaudeCode2Section.IsVisible;
         ZaiCompactSection.IsVisible = ZaiSection.IsVisible;
+        ZaiCompactTokenRow.IsVisible = _zai5hPercent.HasValue && ZaiSection.IsVisible;
+        ZaiCompactRequestsRow.IsVisible = _zaiMoPercent.HasValue && ZaiSection.IsVisible;
 
         if (string.IsNullOrWhiteSpace(OpenRouterCompactText.Text))
             OpenRouterCompactText.Text = "—";
@@ -1575,12 +1592,18 @@ public partial class UsagePopup : Window
             }
         }
 
-        RenderCompactBar(ZaiCompact5hBar, ZaiCompact5hTick, Color.FromRgb(0xBA, 0x68, 0xC8), _zai5hPercent ?? 0, _zai5hExpected, barWidth);
-        RenderCompactBar(ZaiCompactMoBar, ZaiCompactMoTick, Color.FromRgb(0x7E, 0x57, 0xC2), _zaiMoPercent ?? 0, _zaiMoExpected, barWidth);
-        SetUsedExpectedInlines(ZaiCompact5hPct, _zai5hPercent, _zai5hExpected);
-        SetUsedExpectedInlines(ZaiCompactMoPct, _zaiMoPercent, _zaiMoExpected);
-        ZaiCompact5hReset.Text = _zai5hReset.HasValue ? $"in {FormatResetCountdown(_zai5hReset)}" : "";
-        ZaiCompactMoReset.Text = _zaiMoReset.HasValue ? FormatResetDate(_zaiMoReset) : "";
+        if (_zai5hPercent.HasValue)
+        {
+            RenderCompactBar(ZaiCompact5hBar, ZaiCompact5hTick, Color.FromRgb(0xBA, 0x68, 0xC8), _zai5hPercent.Value, _zai5hExpected, barWidth);
+            SetUsedExpectedInlines(ZaiCompact5hPct, _zai5hPercent, _zai5hExpected);
+            ZaiCompact5hReset.Text = _zai5hReset.HasValue ? $"in {FormatResetCountdown(_zai5hReset)}" : "";
+        }
+        if (_zaiMoPercent.HasValue)
+        {
+            RenderCompactBar(ZaiCompactMoBar, ZaiCompactMoTick, Color.FromRgb(0x7E, 0x57, 0xC2), _zaiMoPercent.Value, _zaiMoExpected, barWidth);
+            SetUsedExpectedInlines(ZaiCompactMoPct, _zaiMoPercent, _zaiMoExpected);
+            ZaiCompactMoReset.Text = _zaiMoReset.HasValue ? FormatResetDate(_zaiMoReset) : "";
+        }
     }
 
     private static string FormatUsedExpected(double? used, double? expected)
