@@ -74,22 +74,25 @@
                 </Grid>
 
                 <TextBlock Text="AI" FontSize="9" Foreground="#555555" FontWeight="Bold" Margin="0,3,0,0" />
-                <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto">
+                <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto">
                     <Border x:Name="OpenRouterSection" Grid.Row="0" Grid.Column="0" Background="#222222" CornerRadius="8" Padding="8" Margin="0,0,3,0" IsVisible="False">
-                            <StackPanel Spacing="4">
-                                <Grid ColumnDefinitions="*,Auto">
-                                    <TextBlock Text="OpenRouter" FontSize="10" Foreground="#888888" FontWeight="Medium" />
-                                    <TextBlock x:Name="OpenRouterCreditsText" Text="—" FontSize="10" Foreground="#4FC3F7" Grid.Column="1" TextAlignment="Right" />
-                                </Grid>
-                                <TextBlock x:Name="OpenRouterRangeText" Text="" FontSize="8" Foreground="#555555" TextWrapping="Wrap" />
-                                <Grid x:Name="OpenAiRow" ColumnDefinitions="*,Auto" IsVisible="False">
-                                    <TextBlock Text="OpenAI" FontSize="10" Foreground="#888888" FontWeight="Medium" />
-                                    <TextBlock x:Name="OpenAiCreditsText" Text="—" FontSize="10" Foreground="#10A37F" Grid.Column="1" TextAlignment="Right" />
-                                </Grid>
-                            </StackPanel>
-                        </Border>
+                        <StackPanel Spacing="4">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="OpenRouter" FontSize="10" Foreground="#888888" FontWeight="Medium" />
+                                <TextBlock x:Name="OpenRouterCreditsText" Text="—" FontSize="10" Foreground="#4FC3F7" Grid.Column="1" TextAlignment="Right" />
+                            </Grid>
+                            <TextBlock x:Name="OpenRouterRangeText" Text="" FontSize="8" Foreground="#555555" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
 
-                        <Border x:Name="CodexSection" Grid.Row="0" Grid.Column="1" Background="#222222" CornerRadius="8" Padding="8" Margin="3,0,0,0" IsVisible="False">
+                    <Border x:Name="OpenAiSection" Grid.Row="0" Grid.Column="1" Background="#222222" CornerRadius="8" Padding="8" Margin="3,0,0,0" IsVisible="False">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Text="OpenAI" FontSize="10" Foreground="#888888" FontWeight="Medium" />
+                            <TextBlock x:Name="OpenAiCreditsText" Text="—" FontSize="10" Foreground="#10A37F" Grid.Column="1" TextAlignment="Right" />
+                        </Grid>
+                    </Border>
+
+                        <Border x:Name="CodexSection" Grid.Row="1" Grid.Column="0" Background="#222222" CornerRadius="8" Padding="8" Margin="0,3,3,0" IsVisible="False">
                             <StackPanel Spacing="3">
                                 <Grid ColumnDefinitions="*,Auto">
                                     <TextBlock x:Name="CodexTitleText" Text="Codex" FontSize="10" Foreground="#888888" FontWeight="Medium" />

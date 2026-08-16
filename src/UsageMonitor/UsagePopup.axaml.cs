@@ -141,10 +141,12 @@ public partial class UsagePopup : Window
     private UsageApiStatus? _lastStatus;
 
     // Provider visibility toggles surfaced (in this order) in the tray "Providers" menu.
-    public enum ProviderToggle { Codex, Codex2, CodexSpark, Claude, Claude2, ClaudeDesign, Claude2Design, Zai, ZaiRequests }
+    public enum ProviderToggle { OpenAi, OpenRouter, Codex, Codex2, CodexSpark, Claude, Claude2, ClaudeDesign, Claude2Design, Zai, ZaiRequests }
 
     public static readonly IReadOnlyList<(ProviderToggle Key, string Label)> ProviderToggles = new[]
     {
+        (ProviderToggle.OpenAi, "OpenAI"),
+        (ProviderToggle.OpenRouter, "OpenRouter"),
         (ProviderToggle.Codex, "Codex"),
         (ProviderToggle.CodexSpark, "Codex Spark"),
         (ProviderToggle.Claude, "Claude"),
@@ -970,6 +972,8 @@ public partial class UsagePopup : Window
 
     public bool IsProviderVisible(ProviderToggle toggle) => toggle switch
     {
+        ProviderToggle.OpenAi => _config.ShowOpenAi,
+        ProviderToggle.OpenRouter => _config.ShowOpenRouter,
         ProviderToggle.Codex => _config.ShowCodex,
         ProviderToggle.Codex2 => _config.ShowCodex2,
         ProviderToggle.CodexSpark => _config.ShowCodexSpark,
@@ -986,6 +990,8 @@ public partial class UsagePopup : Window
     {
         switch (toggle)
         {
+            case ProviderToggle.OpenAi: _config.ShowOpenAi = visible; break;
+            case ProviderToggle.OpenRouter: _config.ShowOpenRouter = visible; break;
             case ProviderToggle.Codex: _config.ShowCodex = visible; break;
             case ProviderToggle.Codex2: _config.ShowCodex2 = visible; break;
             case ProviderToggle.CodexSpark: _config.ShowCodexSpark = visible; break;
@@ -1006,6 +1012,8 @@ public partial class UsagePopup : Window
     {
         void Apply()
         {
+            ApplyOpenRouter(_lastStatus?.OpenRouter);
+            ApplyOpenAi(_lastStatus?.OpenAi);
             ApplyCodex(_lastStatus?.Codex);
             ApplyCodex2(_lastStatus?.Codex2);
             ApplyClaude(_lastStatus?.Claude);
@@ -1029,6 +1037,7 @@ public partial class UsagePopup : Window
         Control[] sections =
         {
             OpenRouterSection,
+            OpenAiSection,
             CodexSection,
             Codex2Section,
             ClaudeCodeSection,
@@ -1055,8 +1064,9 @@ public partial class UsagePopup : Window
 
     private void ApplyOpenRouter(OpenRouterBlock? r)
     {
-        OpenRouterSection.IsVisible = r != null;
-        if (r == null) return;
+        var show = r != null && _config.ShowOpenRouter;
+        OpenRouterSection.IsVisible = show;
+        if (!show || r == null) return;
         var remaining = r.LimitRemaining ?? (r.Limit.HasValue ? Math.Max(0, r.Limit.Value - r.Usage) : (double?)null);
         OpenRouterCreditsText.Text = remaining.HasValue
             ? $"${r.Usage:F2} used | ${remaining.Value:F2} left"
@@ -1067,8 +1077,9 @@ public partial class UsagePopup : Window
 
     private void ApplyOpenAi(OpenAiBlock? o)
     {
-        OpenAiRow.IsVisible = o != null;
-        if (o == null) return;
+        var show = o != null && _config.ShowOpenAi;
+        OpenAiSection.IsVisible = show;
+        if (!show || o == null) return;
         OpenAiCreditsText.Text = $"${o.SpendMonth:F2} this month";
     }
 
@@ -1488,7 +1499,7 @@ public partial class UsagePopup : Window
 
         // AI one-liners
         OpenRouterCompactSection.IsVisible = OpenRouterSection.IsVisible;
-        OpenAiCompactRow.IsVisible = OpenAiRow.IsVisible;
+        OpenAiCompactRow.IsVisible = OpenAiSection.IsVisible;
         CodexCompactSection.IsVisible = CodexSection.IsVisible;
         Codex2CompactSection.IsVisible = Codex2Section.IsVisible;
         ClaudeCompactSection.IsVisible = ClaudeCodeSection.IsVisible;

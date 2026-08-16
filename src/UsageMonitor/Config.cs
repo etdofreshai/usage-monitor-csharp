@@ -47,6 +47,8 @@ public class Config
     public bool ShowClaude { get; set; } = true;
     public bool ShowClaudeDesign { get; set; } = true;
     public bool ShowClaude2Design { get; set; } = true;
+    public bool ShowOpenAi { get; set; } = true;
+    public bool ShowOpenRouter { get; set; } = true;
     public bool ShowZai { get; set; } = true;
     public bool ShowZaiRequests { get; set; } = true;
 
@@ -112,6 +114,8 @@ public class Config
         ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_CLAUDE2", nameof(ShowClaude2), v => config.ShowClaude2 = v);
         ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_CLAUDE_DESIGN", nameof(ShowClaudeDesign), v => config.ShowClaudeDesign = v);
         ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_CLAUDE2_DESIGN", nameof(ShowClaude2Design), v => config.ShowClaude2Design = v);
+        ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_OPENAI", nameof(ShowOpenAi), v => config.ShowOpenAi = v);
+        ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_OPENROUTER", nameof(ShowOpenRouter), v => config.ShowOpenRouter = v);
         ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_ZAI", nameof(ShowZai), v => config.ShowZai = v);
         ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_ZAI_REQUESTS", nameof(ShowZaiRequests), v => config.ShowZaiRequests = v);
     }
