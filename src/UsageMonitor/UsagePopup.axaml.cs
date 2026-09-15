@@ -22,14 +22,12 @@ public partial class UsagePopup : Window
     {
         Full,
         Compact,
-        IconOnly,
     }
 
     private const double FullWidth = 572;
     private const double FullHeight = 450;
     private const double CompactWidth = 390;
     private const double CompactHeight = 124;
-    private const double IconOnlySize = 54;
 
     private readonly Config _config;
     private readonly DispatcherTimer _systemRefreshTimer;
@@ -164,8 +162,6 @@ public partial class UsagePopup : Window
         Icon = AppIcon.Create();
         _appBitmap = AppIcon.CreateBitmap();
         RestoreFullIcon.Source = _appBitmap;
-        IconOnlyButtonImage.Source = _appBitmap;
-        RestoreIconImage.Source = _appBitmap;
 
         _config = Config.Load();
         InitializeDriveDisplays();
@@ -174,9 +170,7 @@ public partial class UsagePopup : Window
         CloseButton.Click += (s, e) => HidePopup();
         CloseCompactButton.Click += (s, e) => HidePopup();
         CompactButton.Click += (s, e) => SetViewMode(PopupViewMode.Compact);
-        IconOnlyButton.Click += (s, e) => SetViewMode(PopupViewMode.IconOnly);
         RestoreFullButton.Click += (s, e) => SetViewMode(PopupViewMode.Full);
-        RestoreIconButton.Click += (s, e) => SetViewMode(PopupViewMode.Full);
         UpdateButton.Click += async (_, _) => await ApplyUpdateAsync();
         UpdateButtonCompact.Click += async (_, _) => await ApplyUpdateAsync();
         MonitorTitleText.PointerPressed += (_, _) => OpenUsageDashboard();
@@ -1088,6 +1082,7 @@ public partial class UsagePopup : Window
     {
         // Held for ApplyCodex2, which runs next and owns the title text.
         _codexPlan = c?.PlanType;
+        CodexCompactPlan.Text = FormatPlan(_codexPlan) ?? "";
         var show = c != null && _config.ShowCodex;
         CodexSection.IsVisible = show;
         if (!show || c == null) return;
@@ -1173,6 +1168,7 @@ public partial class UsagePopup : Window
         Codex2Section.IsVisible = show;
         SetTitleWithPlan(CodexTitleText, show ? "Codex #1" : "Codex", _codexPlan);
         SetTitleWithPlan(Codex2TitleText, "Codex #2", c?.PlanType);
+        Codex2CompactPlan.Text = FormatPlan(c?.PlanType) ?? "";
         CodexCompactFiveHourLabelText.Text = show ? "Codex1 5h" : "Codex 5h";
         CodexCompactSevenDayLabelText.Text = show ? "Codex1 7d" : "Codex 7d";
 
@@ -1279,6 +1275,7 @@ public partial class UsagePopup : Window
         ClaudeCodeSection.IsVisible = show;
         if (!show || c == null) return;
         SetTitleWithPlan(ClaudeTitleText, "Claude", c.SubscriptionType);
+        ClaudeCompactPlan.Text = FormatPlan(c.SubscriptionType) ?? "";
         SetTwoUsedExpectedInlines(ClaudeCodeCreditsText, c.FiveHour.UsedPercent, c.FiveHour.ExpectedPercent, c.SevenDay.UsedPercent, c.SevenDay.ExpectedPercent);
         _claude5hUsed = c.FiveHour.UsedPercent;
         _claude7dUsed = c.SevenDay.UsedPercent;
@@ -1319,6 +1316,7 @@ public partial class UsagePopup : Window
         var show = c != null && _config.ShowClaude2;
         ClaudeCode2Section.IsVisible = show;
         SetTitleWithPlan(ClaudeCode2TitleText, "Claude 2", c?.SubscriptionType);
+        Claude2CompactPlan.Text = FormatPlan(c?.SubscriptionType) ?? "";
         if (!show)
         {
             // Clear all claude2 state so the compact view never renders stale data.
@@ -1375,6 +1373,7 @@ public partial class UsagePopup : Window
         var show = showTokens || showRequests;
         ZaiSection.IsVisible = show;
         SetTitleWithPlan(ZaiTitleText, "Z.ai", z?.Level);
+        ZaiCompactPlan.Text = FormatPlan(z?.Level) ?? "";
         _zai5hPercent = showTokens ? z!.FiveHour?.UsedPercent : null;
         _zai5hReset = showTokens ? z!.FiveHour?.ResetsAt : null;
         _zai5hExpected = showTokens ? z!.FiveHour?.ExpectedPercent : null;
@@ -1433,7 +1432,6 @@ public partial class UsagePopup : Window
     {
         UpdateButton.IsVisible = _updateAvailable && _viewMode == PopupViewMode.Full;
         UpdateButtonCompact.IsVisible = _updateAvailable && _viewMode == PopupViewMode.Compact;
-        IconOnlyUpdateDot.IsVisible = _updateAvailable && _viewMode == PopupViewMode.IconOnly;
     }
 
     private void SetViewMode(PopupViewMode mode, bool anchorBottomRight = true)
@@ -1448,10 +1446,8 @@ public partial class UsagePopup : Window
 
         FullView.IsVisible = mode == PopupViewMode.Full;
         CompactView.IsVisible = mode == PopupViewMode.Compact;
-        IconOnlyView.IsVisible = mode == PopupViewMode.IconOnly;
 
         CompactButton.IsVisible = mode == PopupViewMode.Full;
-        IconOnlyButton.IsVisible = mode == PopupViewMode.Full;
         CloseButton.IsVisible = mode == PopupViewMode.Full;
         UpdateUpdateAffordances();
 
@@ -1818,7 +1814,7 @@ public partial class UsagePopup : Window
                     return;
             }
 
-            if (CloseButton.IsPointerOver || CompactButton.IsPointerOver || IconOnlyButton.IsPointerOver || RestoreIconButton.IsPointerOver
+            if (CloseButton.IsPointerOver || CompactButton.IsPointerOver
                 || CloseCompactButton.IsPointerOver || UpdateButton.IsPointerOver || UpdateButtonCompact.IsPointerOver)
                 return;
 
