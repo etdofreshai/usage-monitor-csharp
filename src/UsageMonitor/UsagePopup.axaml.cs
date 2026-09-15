@@ -105,6 +105,7 @@ public partial class UsagePopup : Window
     private double? _codex2FiveHourUsed;
     private double _codex2SevenDayUsed;
     private double? _codex2FiveHourExpected, _codex2SevenDayExpected;
+    private string? _codexPlan;
     private double? _codex2SparkFiveHourUsed, _codex2SparkSevenDayUsed;
     private double? _codex2SparkFiveHourExpected, _codex2SparkSevenDayExpected;
     private double _claude5hUsed, _claude7dUsed;
@@ -1085,6 +1086,8 @@ public partial class UsagePopup : Window
 
     private void ApplyCodex(CodexBlock? c)
     {
+        // Held for ApplyCodex2, which runs next and owns the title text.
+        _codexPlan = c?.PlanType;
         var show = c != null && _config.ShowCodex;
         CodexSection.IsVisible = show;
         if (!show || c == null) return;
@@ -1168,7 +1171,8 @@ public partial class UsagePopup : Window
         // compact rows. The primary labels gain "1" only while account #2 is visible.
         var show = c != null && _config.ShowCodex2;
         Codex2Section.IsVisible = show;
-        CodexTitleText.Text = show ? "Codex #1" : "Codex";
+        SetTitleWithPlan(CodexTitleText, show ? "Codex #1" : "Codex", _codexPlan);
+        SetTitleWithPlan(Codex2TitleText, "Codex #2", c?.PlanType);
         CodexCompactFiveHourLabelText.Text = show ? "Codex1 5h" : "Codex 5h";
         CodexCompactSevenDayLabelText.Text = show ? "Codex1 7d" : "Codex 7d";
 
@@ -1274,6 +1278,7 @@ public partial class UsagePopup : Window
         var show = c != null && _config.ShowClaude;
         ClaudeCodeSection.IsVisible = show;
         if (!show || c == null) return;
+        SetTitleWithPlan(ClaudeTitleText, "Claude", c.SubscriptionType);
         SetTwoUsedExpectedInlines(ClaudeCodeCreditsText, c.FiveHour.UsedPercent, c.FiveHour.ExpectedPercent, c.SevenDay.UsedPercent, c.SevenDay.ExpectedPercent);
         _claude5hUsed = c.FiveHour.UsedPercent;
         _claude7dUsed = c.SevenDay.UsedPercent;
@@ -1313,6 +1318,7 @@ public partial class UsagePopup : Window
         // providers.claude2 AND the local config flag approves it.
         var show = c != null && _config.ShowClaude2;
         ClaudeCode2Section.IsVisible = show;
+        SetTitleWithPlan(ClaudeCode2TitleText, "Claude 2", c?.SubscriptionType);
         if (!show)
         {
             // Clear all claude2 state so the compact view never renders stale data.
@@ -1368,6 +1374,7 @@ public partial class UsagePopup : Window
         var showRequests = z?.Monthly != null && _config.ShowZaiRequests;
         var show = showTokens || showRequests;
         ZaiSection.IsVisible = show;
+        SetTitleWithPlan(ZaiTitleText, "Z.ai", z?.Level);
         _zai5hPercent = showTokens ? z!.FiveHour?.UsedPercent : null;
         _zai5hReset = showTokens ? z!.FiveHour?.ResetsAt : null;
         _zai5hExpected = showTokens ? z!.FiveHour?.ExpectedPercent : null;
@@ -1647,6 +1654,33 @@ public partial class UsagePopup : Window
             Foreground = new SolidColorBrush(ExpectedTint(used, expected)),
             FontSize = Math.Max(6, baseFontSize - 2),
         };
+    }
+
+    // The plan tier is metadata, not a measurement, so it trails the provider
+    // name in the sub-label gray rather than competing with the percentages.
+    private static void SetTitleWithPlan(TextBlock tb, string title, string? plan)
+    {
+        tb.Inlines!.Clear();
+        tb.Inlines.Add(new Run(title));
+        var label = FormatPlan(plan);
+        if (label == null) return;
+        tb.Inlines.Add(new Run($"  {label}")
+        {
+            Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
+            FontSize = Math.Max(6, tb.FontSize - 2),
+        });
+    }
+
+    // Providers disagree on casing: usage-api sends Claude's tier already
+    // display-ready ("Max 20x"), while Codex and Z.ai send raw enum values
+    // ("pro", "max"). Anything already carrying capitals is left untouched.
+    private static string? FormatPlan(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        var s = raw.Trim().Replace('_', ' ');
+        if (s.Any(char.IsUpper)) return s;
+        return string.Join(' ', s.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Select(w => char.ToUpperInvariant(w[0]) + w[1..]));
     }
 
     private static void SetUsedExpectedInlines(TextBlock tb, double? used, double? expected)

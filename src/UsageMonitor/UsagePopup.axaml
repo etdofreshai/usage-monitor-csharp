@@ -133,7 +133,7 @@
                         <Border x:Name="Codex2Section" Grid.Row="0" Grid.Column="1" Background="#222222" CornerRadius="8" Padding="8" Margin="3,0,0,0" IsVisible="False">
                             <StackPanel Spacing="3">
                                 <Grid ColumnDefinitions="*,Auto">
-                                    <TextBlock Text="Codex #2" FontSize="10" Foreground="#888888" FontWeight="Medium" />
+                                    <TextBlock x:Name="Codex2TitleText" Text="Codex #2" FontSize="10" Foreground="#888888" FontWeight="Medium" />
                                     <TextBlock x:Name="Codex2CreditsText" Text="—" FontSize="10" Foreground="#64B5F6" Grid.Column="1" TextAlignment="Right" />
                                 </Grid>
                                 <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="28,*">
@@ -169,7 +169,7 @@
                         <Border x:Name="ClaudeCodeSection" Grid.Row="1" Grid.Column="0" Background="#222222" CornerRadius="8" Padding="8" Margin="0,3,3,0" IsVisible="False">
                             <StackPanel Spacing="3">
                                 <Grid ColumnDefinitions="*,Auto">
-                                    <TextBlock Text="Claude" FontSize="10" Foreground="#888888" FontWeight="Medium" />
+                                    <TextBlock x:Name="ClaudeTitleText" Text="Claude" FontSize="10" Foreground="#888888" FontWeight="Medium" />
                                     <TextBlock x:Name="ClaudeCodeCreditsText" Text="—" FontSize="10" Foreground="#FF8A65" Grid.Column="1" TextAlignment="Right" />
                                 </Grid>
                                 <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="28,*">
@@ -199,7 +199,7 @@
                         <Border x:Name="ClaudeCode2Section" Grid.Row="2" Grid.Column="0" Background="#222222" CornerRadius="8" Padding="8" Margin="0,3,3,0" IsVisible="False">
                             <StackPanel Spacing="3">
                                 <Grid ColumnDefinitions="*,Auto">
-                                    <TextBlock Text="Claude 2" FontSize="10" Foreground="#888888" FontWeight="Medium" />
+                                    <TextBlock x:Name="ClaudeCode2TitleText" Text="Claude 2" FontSize="10" Foreground="#888888" FontWeight="Medium" />
                                     <TextBlock x:Name="ClaudeCode2CreditsText" Text="—" FontSize="10" Foreground="#FF8A65" Grid.Column="1" TextAlignment="Right" />
                                 </Grid>
                                 <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="28,*">
@@ -229,7 +229,7 @@
                         <Border x:Name="ZaiSection" Grid.Row="1" Grid.Column="1" Background="#222222" CornerRadius="8" Padding="8" Margin="3,3,0,0" IsVisible="False">
                             <StackPanel Spacing="3">
                                 <Grid ColumnDefinitions="*,Auto">
-                                    <TextBlock Text="Z.ai" FontSize="10" Foreground="#888888" FontWeight="Medium" />
+                                    <TextBlock x:Name="ZaiTitleText" Text="Z.ai" FontSize="10" Foreground="#888888" FontWeight="Medium" />
                                     <TextBlock x:Name="ZaiCreditsText" Text="—" FontSize="10" Foreground="#BA68C8" Grid.Column="1" TextAlignment="Right" />
                                 </Grid>
                                 <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="22,*">
