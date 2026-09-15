@@ -1618,6 +1618,7 @@ public partial class UsagePopup : Window
             SetUsedExpectedInlines(ZaiCompactMoPct, _zaiMoPercent, _zaiMoExpected);
             ZaiCompactMoReset.Text = _zaiMoReset.HasValue ? FormatResetDate(_zaiMoReset) : "";
         }
+
     }
 
     private static string FormatUsedExpected(double? used, double? expected)
