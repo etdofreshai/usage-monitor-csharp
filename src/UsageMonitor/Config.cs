@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 
 namespace UsageMonitor;
 
@@ -37,6 +38,16 @@ public class Config
     public string OpenRouterUsageUrl { get; set; } = "https://openrouter.ai/credits";
     public string OpenAiUsageUrl { get; set; } = "https://platform.openai.com/usage";
 
+    // CLIProxyAPI's own host. Its management API reports per-credential health that
+    // usage-api has no equivalent for: which accounts are cooling down, erroring, or
+    // disabled. The bundled control panel lives at /management.html on this same host.
+    public string CliProxyUrl { get; set; } = "http://etzminisforumx1pro.lan:8317";
+
+    // Management key for that API. Deliberately empty by default: the endpoint bans a
+    // source IP after a few rejected keys, so an unconfigured monitor must not poll it
+    // at all. Supply it here or via CLIPROXY_MANAGEMENT_KEY to light up the section.
+    public string CliProxyManagementKey { get; set; } = "";
+
     // Refresh interval in seconds. Default 5 — usage-api caches snapshots so polling
     // fast is cheap on its end.
     public int RefreshIntervalSeconds { get; set; } = 5;
@@ -60,6 +71,8 @@ public class Config
     public bool ShowOpenRouter { get; set; } = true;
     public bool ShowZai { get; set; } = true;
     public bool ShowZaiRequests { get; set; } = true;
+    // Credential health from the proxy. AND-gated with having a key configured.
+    public bool ShowCliProxy { get; set; } = true;
 
     // Per-drive visibility, keyed by the drive root/mount path. Missing entries
     // default to visible so newly attached fixed drives appear automatically.
@@ -109,6 +122,20 @@ public class Config
             config._envOverridden.Add(nameof(UsageApiUrl));
         }
 
+        var proxy = Environment.GetEnvironmentVariable("CLIPROXY_URL");
+        if (!string.IsNullOrEmpty(proxy))
+        {
+            config.CliProxyUrl = proxy;
+            config._envOverridden.Add(nameof(CliProxyUrl));
+        }
+
+        var proxyKey = Environment.GetEnvironmentVariable("CLIPROXY_MANAGEMENT_KEY");
+        if (!string.IsNullOrEmpty(proxyKey))
+        {
+            config.CliProxyManagementKey = proxyKey;
+            config._envOverridden.Add(nameof(CliProxyManagementKey));
+        }
+
         var repo = Environment.GetEnvironmentVariable("USAGE_MONITOR_REPO");
         if (!string.IsNullOrEmpty(repo))
         {
@@ -127,6 +154,7 @@ public class Config
         ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_OPENROUTER", nameof(ShowOpenRouter), v => config.ShowOpenRouter = v);
         ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_ZAI", nameof(ShowZai), v => config.ShowZai = v);
         ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_ZAI_REQUESTS", nameof(ShowZaiRequests), v => config.ShowZaiRequests = v);
+        ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_CLI_PROXY", nameof(ShowCliProxy), v => config.ShowCliProxy = v);
     }
 
     private static void ApplyFlagEnv(Config config, string envVar, string propertyName, Action<bool> set)
@@ -201,6 +229,12 @@ public class Config
         DriveVisibility[driveKey] = visible;
         Save();
     }
+
+    // The proxy serves its control panel from a fixed path, so this is derived rather
+    // than configured separately.
+    [JsonIgnore]
+    public string CliProxyPanelUrl =>
+        string.IsNullOrWhiteSpace(CliProxyUrl) ? "" : CliProxyUrl.TrimEnd('/') + "/management.html";
 
     public static string GetConfigPath() => ConfigFilePath;
 }

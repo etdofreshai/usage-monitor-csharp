@@ -252,6 +252,17 @@
                         </Border>
                     </Grid>
 
+                    <TextBlock x:Name="ProxyHeaderText" Text="CLI PROXY" FontSize="9" Foreground="#555555" FontWeight="Bold" Margin="0,3,0,0" IsVisible="False" />
+                    <Border x:Name="ProxySection" Background="#222222" CornerRadius="8" Padding="8" IsVisible="False">
+                        <StackPanel Spacing="4">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock x:Name="ProxyTitleText" Text="Credentials" FontSize="10" Foreground="#888888" FontWeight="Medium" />
+                                <TextBlock x:Name="ProxySummaryText" Text="—" FontSize="10" Foreground="#4DB6AC" Grid.Column="1" TextAlignment="Right" />
+                            </Grid>
+                            <StackPanel x:Name="ProxyAccountsHost" Spacing="3" />
+                        </StackPanel>
+                    </Border>
+
                     <Border x:Name="NoKeysHint" Background="#1A1A1A" CornerRadius="8" Padding="10" IsVisible="True">
                         <StackPanel Spacing="3">
                             <TextBlock Text="No API keys configured" FontSize="10" Foreground="#666666" TextWrapping="Wrap" />
@@ -280,14 +291,24 @@
                     Padding="10,6,10,8">
                 <StackPanel Spacing="2">
                     <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock x:Name="MonitorTitleText"
-                                   Text="Monitor"
-                                   FontSize="9"
-                                   Foreground="#777777"
-                                   FontWeight="Bold"
-                                   VerticalAlignment="Center"
-                                   Cursor="Hand"
-                                   ToolTip.Tip="Open usage dashboard" />
+                        <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                            <TextBlock x:Name="MonitorTitleText"
+                                       Text="Monitor"
+                                       FontSize="9"
+                                       Foreground="#777777"
+                                       FontWeight="Bold"
+                                       VerticalAlignment="Center"
+                                       Cursor="Hand"
+                                       ToolTip.Tip="Open usage dashboard" />
+                            <TextBlock x:Name="ProxyLinkCompact"
+                                       Text="Proxy"
+                                       FontSize="9"
+                                       Foreground="#4DB6AC"
+                                       FontWeight="Bold"
+                                       VerticalAlignment="Center"
+                                       Cursor="Hand"
+                                       ToolTip.Tip="Open the CLI Proxy API control panel" />
+                        </StackPanel>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
                             <Button x:Name="UpdateButtonCompact"
                                     Width="22" Height="22"
@@ -562,6 +583,26 @@
                         </StackPanel>
                     
                     </DockPanel>
+
+                    <StackPanel x:Name="ProxyCompactSection" Spacing="1" IsVisible="False">
+                        <Border Height="1" Background="#333333" Margin="0,2" />
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock x:Name="ProxyCompactLabel"
+                                       Text="Proxy"
+                                       FontSize="9"
+                                       Foreground="#4DB6AC"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center" />
+                            <TextBlock x:Name="ProxyCompactSummary"
+                                       Grid.Column="1"
+                                       Text="—"
+                                       FontSize="8"
+                                       Foreground="#888888"
+                                       TextAlignment="Right"
+                                       VerticalAlignment="Center" />
+                        </Grid>
+                        <StackPanel x:Name="ProxyCompactHost" Spacing="1" />
+                    </StackPanel>
                 </StackPanel>
             </Border>
 
@@ -582,6 +623,21 @@
                                FontSize="16"
                                Foreground="#4CAF50"
                                FontWeight="Bold"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center" />
+                </Button>
+
+                <Button x:Name="ProxyButton"
+                        Width="42" Height="24"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        CornerRadius="12"
+                        Padding="0"
+                        ToolTip.Tip="Open the CLI Proxy API control panel">
+                    <TextBlock Text="Proxy"
+                               FontSize="10"
+                               Foreground="#4DB6AC"
+                               FontWeight="SemiBold"
                                HorizontalAlignment="Center"
                                VerticalAlignment="Center" />
                 </Button>

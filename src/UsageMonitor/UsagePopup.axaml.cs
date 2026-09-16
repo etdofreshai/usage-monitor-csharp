@@ -32,6 +32,7 @@ public partial class UsagePopup : Window
     private readonly Config _config;
     private readonly DispatcherTimer _systemRefreshTimer;
     private readonly DispatcherTimer _aiRefreshTimer;
+    private readonly DispatcherTimer _proxyRefreshTimer;
     private readonly Bitmap _appBitmap;
     private PopupViewMode _viewMode = PopupViewMode.Full;
     private bool _allowClose;
@@ -130,6 +131,7 @@ public partial class UsagePopup : Window
 
     // Single source of truth: the usage-api aggregator.
     private UsageApiService? _usageApiService;
+    private CliProxyService? _cliProxyService;
 
     // Auto-update checker
     private UpdateChecker? _updateChecker;
@@ -174,6 +176,7 @@ public partial class UsagePopup : Window
         UpdateButton.Click += async (_, _) => await ApplyUpdateAsync();
         UpdateButtonCompact.Click += async (_, _) => await ApplyUpdateAsync();
         MonitorTitleText.PointerPressed += (_, _) => OpenUsageDashboard();
+        WireProxyPanelLinks();
         WireProviderLinks();
         // Enable dragging from title bar area (works in all modes including compact)
         PointerPressed += OnPointerPressed;
@@ -188,6 +191,12 @@ public partial class UsagePopup : Window
         var aiRefreshIntervalSeconds = Math.Max(1, _config.RefreshIntervalSeconds);
         _aiRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(aiRefreshIntervalSeconds) };
         _aiRefreshTimer.Tick += AiRefreshTimer_Tick;
+
+        // Credential health moves on the order of minutes, and the proxy's management API
+        // bans a source IP after a few rejected keys, so this polls far more slowly than
+        // usage-api does.
+        _proxyRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+        _proxyRefreshTimer.Tick += ProxyRefreshTimer_Tick;
 
         // Initialize CPU counter on Windows
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -282,6 +291,10 @@ public partial class UsagePopup : Window
         // returned data. NoKeysHint also flips off after the first successful response.
         NoKeysHint.IsVisible = false;
         ConfigPathText.Text = $"Source: {_config.UsageApiUrl}";
+
+        // Only constructed when a key exists; an unconfigured proxy must not be polled,
+        // since repeated rejected keys get the machine's IP banned by the proxy.
+        _cliProxyService = new CliProxyService(_config.CliProxyUrl, _config.CliProxyManagementKey);
     }
 
     private void OpenUsageDashboard()
@@ -453,12 +466,19 @@ public partial class UsagePopup : Window
         // Fetch AI credits immediately, then on timer
         _ = RefreshAiCreditsAsync();
         _aiRefreshTimer.Start();
+
+        if (_cliProxyService?.IsConfigured == true)
+        {
+            _ = RefreshProxyAsync();
+            _proxyRefreshTimer.Start();
+        }
     }
 
     public void HidePopup()
     {
         _systemRefreshTimer.Stop();
         _aiRefreshTimer.Stop();
+        _proxyRefreshTimer.Stop();
         Hide();
     }
 
@@ -469,6 +489,7 @@ public partial class UsagePopup : Window
         _allowClose = true;
         _systemRefreshTimer.Stop();
         _aiRefreshTimer.Stop();
+        _proxyRefreshTimer.Stop();
         _usageApiService?.Dispose();
         _updateChecker?.Dispose();
     }
@@ -1016,6 +1037,141 @@ public partial class UsagePopup : Window
         });
     }
 
+    // The panel link only makes sense when a proxy host is configured; otherwise both
+    // affordances stay hidden rather than opening a dead URL.
+    private void WireProxyPanelLinks()
+    {
+        var url = _config.CliProxyPanelUrl;
+        var hasUrl = !string.IsNullOrWhiteSpace(url);
+        ProxyButton.IsVisible = hasUrl;
+        ProxyLinkCompact.IsVisible = hasUrl;
+        if (!hasUrl) return;
+
+        ToolTip.SetTip(ProxyButton, $"Open the CLI Proxy API control panel\n{url}");
+        ToolTip.SetTip(ProxyLinkCompact, $"Open the CLI Proxy API control panel\n{url}");
+        ProxyButton.Click += (_, _) => OpenUrl(url);
+        ProxyLinkCompact.PointerPressed += (_, _) => OpenUrl(url);
+    }
+
+    private async void ProxyRefreshTimer_Tick(object? sender, EventArgs e)
+    {
+        await RefreshProxyAsync();
+    }
+
+    private async Task RefreshProxyAsync()
+    {
+        if (_cliProxyService is not { IsConfigured: true }) return;
+        var status = await _cliProxyService.GetStatusAsync();
+        if (status == null) return;
+        Dispatcher.UIThread.Post(() => ApplyProxy(status));
+    }
+
+    // Health drives colour only; all wording lives in ProxyDisplay.
+    private static Color HealthColor(ProxyAccount account) =>
+        account.Disabled ? Color.FromRgb(0x77, 0x77, 0x77)
+        : account.Health switch
+        {
+            ProxyHealth.Down => Color.FromRgb(0xEF, 0x53, 0x50),
+            ProxyHealth.Limited => Color.FromRgb(0xFF, 0xB7, 0x4D),
+            _ => Color.FromRgb(0x81, 0xC7, 0x84),
+        };
+
+    private void ApplyProxy(CliProxyStatus status)
+    {
+        var show = _config.ShowCliProxy && _cliProxyService?.IsConfigured == true;
+        ProxyAccountsHost.Children.Clear();
+        ProxyCompactHost.Children.Clear();
+
+        if (!show || (status.Accounts.Count == 0 && status.Error == null))
+        {
+            ProxySection.IsVisible = false;
+            ProxyHeaderText.IsVisible = false;
+            ProxyCompactSection.IsVisible = false;
+            return;
+        }
+
+        ProxySection.IsVisible = true;
+        ProxyHeaderText.IsVisible = true;
+        ProxyCompactSection.IsVisible = true;
+
+        if (status.Error != null)
+        {
+            ProxySummaryText.Text = status.Error;
+            ProxyCompactSummary.Text = status.Error;
+            ProxySummaryText.Foreground = new SolidColorBrush(Color.FromRgb(0xEF, 0x53, 0x50));
+            ProxyCompactSummary.Foreground = new SolidColorBrush(Color.FromRgb(0xEF, 0x53, 0x50));
+            return;
+        }
+
+        var down = status.Accounts.Count(x => x.Health == ProxyHealth.Down);
+        var limited = status.Accounts.Count(x => x.Health == ProxyHealth.Limited);
+        var summary = down > 0 || limited > 0
+            ? $"{status.Accounts.Count - down - limited}/{status.Accounts.Count} ready"
+            : $"{status.Accounts.Count} ready";
+        var summaryColor = down > 0
+            ? Color.FromRgb(0xEF, 0x53, 0x50)
+            : limited > 0 ? Color.FromRgb(0xFF, 0xB7, 0x4D) : Color.FromRgb(0x4D, 0xB6, 0xAC);
+
+        ProxySummaryText.Text = summary;
+        ProxyCompactSummary.Text = summary;
+        ProxySummaryText.Foreground = new SolidColorBrush(summaryColor);
+        ProxyCompactSummary.Foreground = new SolidColorBrush(summaryColor);
+
+        foreach (var account in status.Accounts)
+        {
+            var (state, detail) = ProxyDisplay.Describe(account);
+            var color = HealthColor(account);
+            var label = ProxyDisplay.AccountLabel(account);
+            ProxyAccountsHost.Children.Add(BuildProxyRow(label, state, detail, color, compact: false));
+            ProxyCompactHost.Children.Add(BuildProxyRow(label, state, detail, color, compact: true));
+        }
+    }
+
+    private static Grid BuildProxyRow(string label, string state, string detail, Color color, bool compact)
+    {
+        var row = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions(compact ? "72,*,Auto" : "110,*,Auto"),
+            ClipToBounds = true,
+        };
+
+        var name = new TextBlock
+        {
+            Text = label,
+            FontSize = compact ? 9 : 10,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x4D, 0xB6, 0xAC)),
+            FontWeight = compact ? FontWeight.SemiBold : FontWeight.Normal,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        row.Children.Add(name);
+
+        var stateText = new TextBlock
+        {
+            Text = state,
+            FontSize = 8,
+            Foreground = new SolidColorBrush(color),
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        Grid.SetColumn(stateText, 1);
+        row.Children.Add(stateText);
+
+        var detailText = new TextBlock
+        {
+            Text = detail,
+            FontSize = 8,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
+            TextAlignment = TextAlignment.Right,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            Margin = new Thickness(6, 0, 0, 0),
+        };
+        Grid.SetColumn(detailText, 2);
+        row.Children.Add(detailText);
+
+        return row;
+    }
+
     public bool IsProviderVisible(ProviderToggle toggle) => toggle switch
     {
         ProviderToggle.OpenAi => _config.ShowOpenAi,
@@ -1499,6 +1655,8 @@ public partial class UsagePopup : Window
         CompactView.IsVisible = mode == PopupViewMode.Compact;
 
         CompactButton.IsVisible = mode == PopupViewMode.Full;
+        ProxyButton.IsVisible = mode == PopupViewMode.Full
+            && !string.IsNullOrWhiteSpace(_config.CliProxyPanelUrl);
         CloseButton.IsVisible = mode == PopupViewMode.Full;
         UpdateUpdateAffordances();
 
@@ -1976,6 +2134,7 @@ public partial class UsagePopup : Window
         {
             _systemRefreshTimer.Stop();
             _aiRefreshTimer.Stop();
+        _proxyRefreshTimer.Stop();
         }
         base.OnClosing(e);
     }
