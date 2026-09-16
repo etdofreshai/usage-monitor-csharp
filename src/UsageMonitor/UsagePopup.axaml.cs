@@ -174,6 +174,7 @@ public partial class UsagePopup : Window
         UpdateButton.Click += async (_, _) => await ApplyUpdateAsync();
         UpdateButtonCompact.Click += async (_, _) => await ApplyUpdateAsync();
         MonitorTitleText.PointerPressed += (_, _) => OpenUsageDashboard();
+        WireProviderLinks();
         // Enable dragging from title bar area (works in all modes including compact)
         PointerPressed += OnPointerPressed;
         PointerMoved += OnPointerMoved;
@@ -285,21 +286,71 @@ public partial class UsagePopup : Window
 
     private void OpenUsageDashboard()
     {
+        OpenUrl(string.IsNullOrWhiteSpace(_config.UsageApiUrl)
+            ? "https://usage.etdofresh.com"
+            : _config.UsageApiUrl.TrimEnd('/'));
+    }
+
+    private static void OpenUrl(string url)
+    {
         try
         {
-            var url = string.IsNullOrWhiteSpace(_config.UsageApiUrl)
-                ? "https://usage.etdofresh.com"
-                : _config.UsageApiUrl.TrimEnd('/');
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = url,
-                UseShellExecute = true
-            });
+            Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Failed to open usage dashboard: {ex.Message}");
+            AppLog.WriteLine($"Failed to open {url}: {ex.Message}");
         }
+    }
+
+    // A provider's name is the click target for that provider's own usage page.
+    // Some labels already carry an explanatory tip, so the URL is appended to it
+    // rather than replacing it.
+    private static void MakeLink(TextBlock label, string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return;
+        label.Cursor = new Cursor(StandardCursorType.Hand);
+        var existing = ToolTip.GetTip(label) as string;
+        ToolTip.SetTip(label, string.IsNullOrEmpty(existing) ? url : $"{existing}\n{url}");
+        label.PointerPressed += (_, _) => OpenUrl(url);
+    }
+
+    // Every compact bar row is a Grid whose first child is its provider label, so
+    // the rows become links without needing an x:Name on each one. The docked plan
+    // label is skipped because it matches neither case.
+    private void WireCompactRowLinks(Panel section, string? url)
+    {
+        foreach (var child in section.Children)
+        {
+            switch (child)
+            {
+                case StackPanel stack:
+                    WireCompactRowLinks(stack, url);
+                    break;
+                case Grid row when row.Children.Count > 0 && row.Children[0] is TextBlock label:
+                    MakeLink(label, url);
+                    break;
+            }
+        }
+    }
+
+    private void WireProviderLinks()
+    {
+        MakeLink(CodexTitleText, _config.CodexUsageUrl);
+        MakeLink(Codex2TitleText, _config.CodexUsageUrl);
+        MakeLink(ClaudeTitleText, _config.ClaudeUsageUrl);
+        MakeLink(ClaudeCode2TitleText, _config.ClaudeUsageUrl);
+        MakeLink(ZaiTitleText, _config.ZaiUsageUrl);
+        MakeLink(OpenRouterTitleText, _config.OpenRouterUsageUrl);
+        MakeLink(OpenAiTitleText, _config.OpenAiUsageUrl);
+
+        WireCompactRowLinks(CodexCompactSection, _config.CodexUsageUrl);
+        WireCompactRowLinks(Codex2CompactSection, _config.CodexUsageUrl);
+        WireCompactRowLinks(ClaudeCompactSection, _config.ClaudeUsageUrl);
+        WireCompactRowLinks(Claude2CompactSection, _config.ClaudeUsageUrl);
+        WireCompactRowLinks(ZaiCompactSection, _config.ZaiUsageUrl);
+        MakeLink(OpenRouterCompactLabel, _config.OpenRouterUsageUrl);
+        MakeLink(OpenAiCompactLabel, _config.OpenAiUsageUrl);
     }
 
     private void RegisterTargetBar(Grid container, Border fill, Border tick, Color baseColor)
@@ -661,7 +712,7 @@ public partial class UsagePopup : Window
 
             var compactFill = NewBarFill();
             var compactBar = NewBarGrid(compactFill, stretch: false);
-            var compactRow = new Grid { ColumnDefinitions = new ColumnDefinitions("58,68,42,48"), ClipToBounds = true };
+            var compactRow = new Grid { ColumnDefinitions = new ColumnDefinitions("58,68,42,*"), ClipToBounds = true };
             compactRow.Children.Add(new TextBlock
             {
                 Text = CompactDriveLabel(label),

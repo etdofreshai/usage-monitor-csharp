@@ -28,6 +28,15 @@ public class Config
     // and exposes a single /api/usage endpoint — see https://github.com/etdofreshai/usage-api.
     public string UsageApiUrl { get; set; } = "https://usage.etdofresh.com";
 
+    // Clicking a provider's name opens that provider's own usage page. These are
+    // the best-known public paths; every one is overridable here because the
+    // vendors move them and a stale default should be a config edit, not a build.
+    public string CodexUsageUrl { get; set; } = "https://chatgpt.com/codex/settings/usage";
+    public string ClaudeUsageUrl { get; set; } = "https://claude.ai/settings/usage";
+    public string ZaiUsageUrl { get; set; } = "https://z.ai/manage-apikey/apikey-list";
+    public string OpenRouterUsageUrl { get; set; } = "https://openrouter.ai/credits";
+    public string OpenAiUsageUrl { get; set; } = "https://platform.openai.com/usage";
+
     // Refresh interval in seconds. Default 5 — usage-api caches snapshots so polling
     // fast is cheap on its end.
     public int RefreshIntervalSeconds { get; set; } = 5;
