@@ -491,6 +491,7 @@ public partial class UsagePopup : Window
         _aiRefreshTimer.Stop();
         _proxyRefreshTimer.Stop();
         _usageApiService?.Dispose();
+        _cliProxyService?.Dispose();
         _updateChecker?.Dispose();
     }
 
