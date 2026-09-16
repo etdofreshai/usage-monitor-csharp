@@ -41,7 +41,9 @@ public enum ProxyHealth
     Down = 2,
 }
 
-public record CliProxyStatus(IReadOnlyList<ProxyAccount> Accounts, string? Error);
+// Unavailable means the proxy answered, but its Management API is switched off. That
+// is distinct from Error, which means the call itself failed and is worth reporting.
+public record CliProxyStatus(IReadOnlyList<ProxyAccount> Accounts, string? Error, bool Unavailable = false);
 
 // Reads per-account health from CLIProxyAPI's management API. This is deliberately
 // separate from UsageApiService: usage-api answers "how much quota is left", while the
@@ -93,6 +95,13 @@ public class CliProxyService : IDisposable
                     $"pausing {AuthFailureBackoff.TotalMinutes:0} min to avoid an IP ban.");
                 return new CliProxyStatus(Array.Empty<ProxyAccount>(), "auth failed");
             }
+
+            // An empty secret-key disables the Management API outright, and every
+            // /v0/management route then answers 404. That is a deliberate "off" rather
+            // than a fault, so it drops the section instead of showing a red error
+            // the user cannot act on. Re-enabling it heals on the next poll.
+            if (resp.StatusCode == HttpStatusCode.NotFound)
+                return new CliProxyStatus(Array.Empty<ProxyAccount>(), null, Unavailable: true);
 
             if (!resp.IsSuccessStatusCode)
                 return new CliProxyStatus(Array.Empty<ProxyAccount>(), $"HTTP {(int)resp.StatusCode}");

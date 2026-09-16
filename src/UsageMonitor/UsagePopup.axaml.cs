@@ -140,9 +140,11 @@ public partial class UsagePopup : Window
     // Last successful usage snapshot, retained so provider show/hide toggles can
     // re-render visibility immediately without waiting for the next poll.
     private UsageApiStatus? _lastStatus;
+    private CliProxyStatus? _lastProxyStatus;
+    private bool _proxyApiOff;
 
     // Provider visibility toggles surfaced (in this order) in the tray "Providers" menu.
-    public enum ProviderToggle { OpenAi, OpenRouter, Codex, Codex2, CodexSpark, Claude, Claude2, ClaudeDesign, Claude2Design, Zai, ZaiRequests }
+    public enum ProviderToggle { OpenAi, OpenRouter, Codex, Codex2, CodexSpark, Claude, Claude2, ClaudeDesign, Claude2Design, Zai, ZaiRequests, CliProxy }
 
     public static readonly IReadOnlyList<(ProviderToggle Key, string Label)> ProviderToggles = new[]
     {
@@ -156,6 +158,7 @@ public partial class UsagePopup : Window
         (ProviderToggle.Claude2Design, "Claude2 Design"),
         (ProviderToggle.Zai, "Z.ai Token Usage"),
         (ProviderToggle.ZaiRequests, "Z.ai Web/MCP Requests"),
+        (ProviderToggle.CliProxy, "CLI Proxy Credentials"),
     };
 
     public UsagePopup()
@@ -1062,6 +1065,9 @@ public partial class UsagePopup : Window
     private async Task RefreshProxyAsync()
     {
         if (_cliProxyService is not { IsConfigured: true }) return;
+        // Nothing is rendering the result while the section is off, so do not spend a
+        // request on it. The timer keeps running and picks back up when it is re-enabled.
+        if (!_config.ShowCliProxy) return;
         var status = await _cliProxyService.GetStatusAsync();
         if (status == null) return;
         Dispatcher.UIThread.Post(() => ApplyProxy(status));
@@ -1077,13 +1083,31 @@ public partial class UsagePopup : Window
             _ => Color.FromRgb(0x81, 0xC7, 0x84),
         };
 
-    private void ApplyProxy(CliProxyStatus status)
+    // Whether the proxy is worth offering in the tray menu at all: a host and key are
+    // configured, and its Management API has not reported itself switched off.
+    public bool IsProxyMonitorAvailable =>
+        _cliProxyService?.IsConfigured == true && !_proxyApiOff;
+
+    // The tray menu is built long before the first poll answers, so it needs to be told
+    // when availability flips rather than reading it once at startup.
+    public event Action? ProxyAvailabilityChanged;
+
+    private void ApplyProxy(CliProxyStatus? status)
     {
-        var show = _config.ShowCliProxy && _cliProxyService?.IsConfigured == true;
+        if (status != null)
+        {
+            _lastProxyStatus = status;
+            var wasAvailable = IsProxyMonitorAvailable;
+            _proxyApiOff = status.Unavailable;
+            if (wasAvailable != IsProxyMonitorAvailable)
+                ProxyAvailabilityChanged?.Invoke();
+        }
+
+        var show = _config.ShowCliProxy && IsProxyMonitorAvailable;
         ProxyAccountsHost.Children.Clear();
         ProxyCompactHost.Children.Clear();
 
-        if (!show || (status.Accounts.Count == 0 && status.Error == null))
+        if (!show || status == null || (status.Accounts.Count == 0 && status.Error == null))
         {
             ProxySection.IsVisible = false;
             ProxyHeaderText.IsVisible = false;
@@ -1186,6 +1210,7 @@ public partial class UsagePopup : Window
         ProviderToggle.Claude2Design => _config.ShowClaude2Design,
         ProviderToggle.Zai => _config.ShowZai,
         ProviderToggle.ZaiRequests => _config.ShowZaiRequests,
+        ProviderToggle.CliProxy => _config.ShowCliProxy,
         _ => true,
     };
 
@@ -1204,9 +1229,15 @@ public partial class UsagePopup : Window
             case ProviderToggle.Claude2Design: _config.ShowClaude2Design = visible; break;
             case ProviderToggle.Zai: _config.ShowZai = visible; break;
             case ProviderToggle.ZaiRequests: _config.ShowZaiRequests = visible; break;
+            case ProviderToggle.CliProxy: _config.ShowCliProxy = visible; break;
         }
         _config.Save();
         ReapplyProviderVisibility();
+
+        // Polling pauses while the section is hidden, so switching it back on would
+        // otherwise sit on a stale snapshot until the next tick came around.
+        if (toggle == ProviderToggle.CliProxy && visible)
+            _ = RefreshProxyAsync();
     }
 
     // Re-render section/bar visibility against the last snapshot so a menu toggle takes
@@ -1222,6 +1253,7 @@ public partial class UsagePopup : Window
             ApplyClaude(_lastStatus?.Claude);
             ApplyClaude2(_lastStatus?.Claude2);
             ApplyZai(_lastStatus?.Zai);
+            ApplyProxy(_lastProxyStatus);
             ReflowAiGrid();
             UpdateCompactSummary();
         }

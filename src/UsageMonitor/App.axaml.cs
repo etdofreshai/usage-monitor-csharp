@@ -140,6 +140,17 @@ public partial class App : Application
                     _popup.SetProviderVisible(toggleKey, !_popup.IsProviderVisible(toggleKey));
                     providerItem.IsChecked = _popup.IsProviderVisible(toggleKey);
                 });
+
+                // The proxy toggle only means something when there is a proxy to watch.
+                // Unconfigured, it never appears; if the Management API is switched off
+                // later the popup raises the event and the entry drops out with it.
+                if (toggleKey == UsagePopup.ProviderToggle.CliProxy)
+                {
+                    providerItem.IsVisible = _popup.IsProxyMonitorAvailable;
+                    _popup.ProxyAvailabilityChanged += () => Dispatcher.UIThread.Post(
+                        () => providerItem.IsVisible = _popup.IsProxyMonitorAvailable);
+                }
+
                 trayMenu.Items.Add(providerItem);
             }
 
