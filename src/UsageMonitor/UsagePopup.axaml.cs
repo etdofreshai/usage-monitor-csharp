@@ -32,7 +32,6 @@ public partial class UsagePopup : Window
     private readonly Config _config;
     private readonly DispatcherTimer _systemRefreshTimer;
     private readonly DispatcherTimer _aiRefreshTimer;
-    private readonly DispatcherTimer _proxyRefreshTimer;
     private readonly Bitmap _appBitmap;
     private PopupViewMode _viewMode = PopupViewMode.Full;
     private bool _allowClose;
@@ -131,7 +130,6 @@ public partial class UsagePopup : Window
 
     // Single source of truth: the usage-api aggregator.
     private UsageApiService? _usageApiService;
-    private CliProxyService? _cliProxyService;
 
     // Auto-update checker
     private UpdateChecker? _updateChecker;
@@ -140,11 +138,9 @@ public partial class UsagePopup : Window
     // Last successful usage snapshot, retained so provider show/hide toggles can
     // re-render visibility immediately without waiting for the next poll.
     private UsageApiStatus? _lastStatus;
-    private CliProxyStatus? _lastProxyStatus;
-    private bool _proxyApiOff;
 
     // Provider visibility toggles surfaced (in this order) in the tray "Providers" menu.
-    public enum ProviderToggle { OpenAi, OpenRouter, Codex, Codex2, CodexSpark, Claude, Claude2, ClaudeDesign, Claude2Design, Zai, ZaiRequests, CliProxy }
+    public enum ProviderToggle { OpenAi, OpenRouter, Codex, Codex2, CodexSpark, Claude, Claude2, ClaudeDesign, Claude2Design, Zai, ZaiRequests }
 
     public static readonly IReadOnlyList<(ProviderToggle Key, string Label)> ProviderToggles = new[]
     {
@@ -158,7 +154,6 @@ public partial class UsagePopup : Window
         (ProviderToggle.Claude2Design, "Claude2 Design"),
         (ProviderToggle.Zai, "Z.ai Token Usage"),
         (ProviderToggle.ZaiRequests, "Z.ai Web/MCP Requests"),
-        (ProviderToggle.CliProxy, "CLI Proxy Credentials"),
     };
 
     public UsagePopup()
@@ -179,7 +174,7 @@ public partial class UsagePopup : Window
         UpdateButton.Click += async (_, _) => await ApplyUpdateAsync();
         UpdateButtonCompact.Click += async (_, _) => await ApplyUpdateAsync();
         MonitorTitleText.PointerPressed += (_, _) => OpenUsageDashboard();
-        WireProxyPanelLinks();
+        WireRouterPanelLinks();
         WireProviderLinks();
         // Enable dragging from title bar area (works in all modes including compact)
         PointerPressed += OnPointerPressed;
@@ -194,12 +189,6 @@ public partial class UsagePopup : Window
         var aiRefreshIntervalSeconds = Math.Max(1, _config.RefreshIntervalSeconds);
         _aiRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(aiRefreshIntervalSeconds) };
         _aiRefreshTimer.Tick += AiRefreshTimer_Tick;
-
-        // Credential health moves on the order of minutes, and the proxy's management API
-        // bans a source IP after a few rejected keys, so this polls far more slowly than
-        // usage-api does.
-        _proxyRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
-        _proxyRefreshTimer.Tick += ProxyRefreshTimer_Tick;
 
         // Initialize CPU counter on Windows
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -294,10 +283,6 @@ public partial class UsagePopup : Window
         // returned data. NoKeysHint also flips off after the first successful response.
         NoKeysHint.IsVisible = false;
         ConfigPathText.Text = $"Source: {_config.UsageApiUrl}";
-
-        // Only constructed when a key exists; an unconfigured proxy must not be polled,
-        // since repeated rejected keys get the machine's IP banned by the proxy.
-        _cliProxyService = new CliProxyService(_config.CliProxyUrl, _config.CliProxyManagementKey);
     }
 
     private void OpenUsageDashboard()
@@ -469,19 +454,12 @@ public partial class UsagePopup : Window
         // Fetch AI credits immediately, then on timer
         _ = RefreshAiCreditsAsync();
         _aiRefreshTimer.Start();
-
-        if (_cliProxyService?.IsConfigured == true)
-        {
-            _ = RefreshProxyAsync();
-            _proxyRefreshTimer.Start();
-        }
     }
 
     public void HidePopup()
     {
         _systemRefreshTimer.Stop();
         _aiRefreshTimer.Stop();
-        _proxyRefreshTimer.Stop();
         Hide();
     }
 
@@ -492,9 +470,7 @@ public partial class UsagePopup : Window
         _allowClose = true;
         _systemRefreshTimer.Stop();
         _aiRefreshTimer.Stop();
-        _proxyRefreshTimer.Stop();
         _usageApiService?.Dispose();
-        _cliProxyService?.Dispose();
         _updateChecker?.Dispose();
     }
 
@@ -1041,160 +1017,20 @@ public partial class UsagePopup : Window
         });
     }
 
-    // The panel link only makes sense when a proxy host is configured; otherwise both
+    // The dashboard link only makes sense when a host is configured; otherwise both
     // affordances stay hidden rather than opening a dead URL.
-    private void WireProxyPanelLinks()
+    private void WireRouterPanelLinks()
     {
-        var url = _config.CliProxyPanelUrl;
+        var url = _config.NineRouterPanelUrl;
         var hasUrl = !string.IsNullOrWhiteSpace(url);
-        ProxyButton.IsVisible = hasUrl;
-        ProxyLinkCompact.IsVisible = hasUrl;
+        RouterButton.IsVisible = hasUrl;
+        RouterLinkCompact.IsVisible = hasUrl;
         if (!hasUrl) return;
 
-        ToolTip.SetTip(ProxyButton, $"Open the CLI Proxy API control panel\n{url}");
-        ToolTip.SetTip(ProxyLinkCompact, $"Open the CLI Proxy API control panel\n{url}");
-        ProxyButton.Click += (_, _) => OpenUrl(url);
-        ProxyLinkCompact.PointerPressed += (_, _) => OpenUrl(url);
-    }
-
-    private async void ProxyRefreshTimer_Tick(object? sender, EventArgs e)
-    {
-        await RefreshProxyAsync();
-    }
-
-    private async Task RefreshProxyAsync()
-    {
-        if (_cliProxyService is not { IsConfigured: true }) return;
-        // Nothing is rendering the result while the section is off, so do not spend a
-        // request on it. The timer keeps running and picks back up when it is re-enabled.
-        if (!_config.ShowCliProxy) return;
-        var status = await _cliProxyService.GetStatusAsync();
-        if (status == null) return;
-        Dispatcher.UIThread.Post(() => ApplyProxy(status));
-    }
-
-    // Health drives colour only; all wording lives in ProxyDisplay.
-    private static Color HealthColor(ProxyAccount account) =>
-        account.Disabled ? Color.FromRgb(0x77, 0x77, 0x77)
-        : account.Health switch
-        {
-            ProxyHealth.Down => Color.FromRgb(0xEF, 0x53, 0x50),
-            ProxyHealth.Limited => Color.FromRgb(0xFF, 0xB7, 0x4D),
-            _ => Color.FromRgb(0x81, 0xC7, 0x84),
-        };
-
-    // Whether the proxy is worth offering in the tray menu at all: a host and key are
-    // configured, and its Management API has not reported itself switched off.
-    public bool IsProxyMonitorAvailable =>
-        _cliProxyService?.IsConfigured == true && !_proxyApiOff;
-
-    // The tray menu is built long before the first poll answers, so it needs to be told
-    // when availability flips rather than reading it once at startup.
-    public event Action? ProxyAvailabilityChanged;
-
-    private void ApplyProxy(CliProxyStatus? status)
-    {
-        if (status != null)
-        {
-            _lastProxyStatus = status;
-            var wasAvailable = IsProxyMonitorAvailable;
-            _proxyApiOff = status.Unavailable;
-            if (wasAvailable != IsProxyMonitorAvailable)
-                ProxyAvailabilityChanged?.Invoke();
-        }
-
-        var show = _config.ShowCliProxy && IsProxyMonitorAvailable;
-        ProxyAccountsHost.Children.Clear();
-        ProxyCompactHost.Children.Clear();
-
-        if (!show || status == null || (status.Accounts.Count == 0 && status.Error == null))
-        {
-            ProxySection.IsVisible = false;
-            ProxyHeaderText.IsVisible = false;
-            ProxyCompactSection.IsVisible = false;
-            return;
-        }
-
-        ProxySection.IsVisible = true;
-        ProxyHeaderText.IsVisible = true;
-        ProxyCompactSection.IsVisible = true;
-
-        if (status.Error != null)
-        {
-            ProxySummaryText.Text = status.Error;
-            ProxyCompactSummary.Text = status.Error;
-            ProxySummaryText.Foreground = new SolidColorBrush(Color.FromRgb(0xEF, 0x53, 0x50));
-            ProxyCompactSummary.Foreground = new SolidColorBrush(Color.FromRgb(0xEF, 0x53, 0x50));
-            return;
-        }
-
-        var down = status.Accounts.Count(x => x.Health == ProxyHealth.Down);
-        var limited = status.Accounts.Count(x => x.Health == ProxyHealth.Limited);
-        var summary = down > 0 || limited > 0
-            ? $"{status.Accounts.Count - down - limited}/{status.Accounts.Count} ready"
-            : $"{status.Accounts.Count} ready";
-        var summaryColor = down > 0
-            ? Color.FromRgb(0xEF, 0x53, 0x50)
-            : limited > 0 ? Color.FromRgb(0xFF, 0xB7, 0x4D) : Color.FromRgb(0x4D, 0xB6, 0xAC);
-
-        ProxySummaryText.Text = summary;
-        ProxyCompactSummary.Text = summary;
-        ProxySummaryText.Foreground = new SolidColorBrush(summaryColor);
-        ProxyCompactSummary.Foreground = new SolidColorBrush(summaryColor);
-
-        foreach (var account in status.Accounts)
-        {
-            var (state, detail) = ProxyDisplay.Describe(account);
-            var color = HealthColor(account);
-            var label = ProxyDisplay.AccountLabel(account);
-            ProxyAccountsHost.Children.Add(BuildProxyRow(label, state, detail, color, compact: false));
-            ProxyCompactHost.Children.Add(BuildProxyRow(label, state, detail, color, compact: true));
-        }
-    }
-
-    private static Grid BuildProxyRow(string label, string state, string detail, Color color, bool compact)
-    {
-        var row = new Grid
-        {
-            ColumnDefinitions = new ColumnDefinitions(compact ? "72,*,Auto" : "110,*,Auto"),
-            ClipToBounds = true,
-        };
-
-        var name = new TextBlock
-        {
-            Text = label,
-            FontSize = compact ? 9 : 10,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x4D, 0xB6, 0xAC)),
-            FontWeight = compact ? FontWeight.SemiBold : FontWeight.Normal,
-            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-        };
-        row.Children.Add(name);
-
-        var stateText = new TextBlock
-        {
-            Text = state,
-            FontSize = 8,
-            Foreground = new SolidColorBrush(color),
-            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-        };
-        Grid.SetColumn(stateText, 1);
-        row.Children.Add(stateText);
-
-        var detailText = new TextBlock
-        {
-            Text = detail,
-            FontSize = 8,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
-            TextAlignment = TextAlignment.Right,
-            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-            Margin = new Thickness(6, 0, 0, 0),
-        };
-        Grid.SetColumn(detailText, 2);
-        row.Children.Add(detailText);
-
-        return row;
+        ToolTip.SetTip(RouterButton, $"Open the 9router dashboard\n{url}");
+        ToolTip.SetTip(RouterLinkCompact, $"Open the 9router dashboard\n{url}");
+        RouterButton.Click += (_, _) => OpenUrl(url);
+        RouterLinkCompact.PointerPressed += (_, _) => OpenUrl(url);
     }
 
     public bool IsProviderVisible(ProviderToggle toggle) => toggle switch
@@ -1210,7 +1046,6 @@ public partial class UsagePopup : Window
         ProviderToggle.Claude2Design => _config.ShowClaude2Design,
         ProviderToggle.Zai => _config.ShowZai,
         ProviderToggle.ZaiRequests => _config.ShowZaiRequests,
-        ProviderToggle.CliProxy => _config.ShowCliProxy,
         _ => true,
     };
 
@@ -1229,15 +1064,9 @@ public partial class UsagePopup : Window
             case ProviderToggle.Claude2Design: _config.ShowClaude2Design = visible; break;
             case ProviderToggle.Zai: _config.ShowZai = visible; break;
             case ProviderToggle.ZaiRequests: _config.ShowZaiRequests = visible; break;
-            case ProviderToggle.CliProxy: _config.ShowCliProxy = visible; break;
         }
         _config.Save();
         ReapplyProviderVisibility();
-
-        // Polling pauses while the section is hidden, so switching it back on would
-        // otherwise sit on a stale snapshot until the next tick came around.
-        if (toggle == ProviderToggle.CliProxy && visible)
-            _ = RefreshProxyAsync();
     }
 
     // Re-render section/bar visibility against the last snapshot so a menu toggle takes
@@ -1253,7 +1082,6 @@ public partial class UsagePopup : Window
             ApplyClaude(_lastStatus?.Claude);
             ApplyClaude2(_lastStatus?.Claude2);
             ApplyZai(_lastStatus?.Zai);
-            ApplyProxy(_lastProxyStatus);
             ReflowAiGrid();
             UpdateCompactSummary();
         }
@@ -1688,8 +1516,8 @@ public partial class UsagePopup : Window
         CompactView.IsVisible = mode == PopupViewMode.Compact;
 
         CompactButton.IsVisible = mode == PopupViewMode.Full;
-        ProxyButton.IsVisible = mode == PopupViewMode.Full
-            && !string.IsNullOrWhiteSpace(_config.CliProxyPanelUrl);
+        RouterButton.IsVisible = mode == PopupViewMode.Full
+            && !string.IsNullOrWhiteSpace(_config.NineRouterPanelUrl);
         CloseButton.IsVisible = mode == PopupViewMode.Full;
         UpdateUpdateAffordances();
 
@@ -2167,7 +1995,6 @@ public partial class UsagePopup : Window
         {
             _systemRefreshTimer.Stop();
             _aiRefreshTimer.Stop();
-        _proxyRefreshTimer.Stop();
         }
         base.OnClosing(e);
     }
