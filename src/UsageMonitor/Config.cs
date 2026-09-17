@@ -217,10 +217,12 @@ public class Config
         Save();
     }
 
-    // 9router's root redirects to its dashboard, so the bare host is the link target.
+    // Link straight to the Quota Tracker rather than the dashboard root, since
+    // that is the page worth landing on from a usage monitor. The root only
+    // 307s to /dashboard, which then needs another click to get here.
     [JsonIgnore]
     public string NineRouterPanelUrl =>
-        string.IsNullOrWhiteSpace(NineRouterUrl) ? "" : NineRouterUrl.TrimEnd('/');
+        string.IsNullOrWhiteSpace(NineRouterUrl) ? "" : NineRouterUrl.TrimEnd('/') + "/dashboard/quota";
 
     public static string GetConfigPath() => ConfigFilePath;
 }
