@@ -172,7 +172,7 @@
                                     <TextBlock x:Name="ClaudeTitleText" Text="Claude" FontSize="10" Foreground="#888888" FontWeight="Medium" />
                                     <TextBlock x:Name="ClaudeCodeCreditsText" Text="—" FontSize="10" Foreground="#FF8A65" Grid.Column="1" TextAlignment="Right" />
                                 </Grid>
-                                <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="28,*">
+                                <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="28,*">
                                     <TextBlock Grid.Row="0" Grid.Column="0" Text="5h" FontSize="8" Foreground="#666666" VerticalAlignment="Center" Margin="0,0,0,3" />
                                     <Grid x:Name="ClaudeCodePrimaryBar" Grid.Row="0" Grid.Column="1" Height="4" Margin="0,0,0,3" ClipToBounds="True">
                                         <Border Background="#333333" CornerRadius="2" />
@@ -190,6 +190,12 @@
                                         <Border Background="#333333" CornerRadius="2" />
                                         <Border x:Name="ClaudeDesignBarFill" Background="#F48FB1" CornerRadius="2" HorizontalAlignment="Left" Width="0" />
                                         <Border x:Name="ClaudeDesignBarTick" Background="#FFFFFF" Width="2" HorizontalAlignment="Left" IsVisible="False" />
+                                    </Grid>
+                                    <TextBlock x:Name="ClaudeFableLabel" Grid.Row="3" Grid.Column="0" Text="Fab" FontSize="8" Foreground="#666666" VerticalAlignment="Center" Margin="0,0,0,3" IsVisible="False" />
+                                    <Grid x:Name="ClaudeFableBar" Grid.Row="3" Grid.Column="1" Height="4" Margin="0,0,0,3" ClipToBounds="True" IsVisible="False">
+                                        <Border Background="#333333" CornerRadius="2" />
+                                        <Border x:Name="ClaudeFableBarFill" Background="#C2410C" CornerRadius="2" HorizontalAlignment="Left" Width="0" />
+                                        <Border x:Name="ClaudeFableBarTick" Background="#FFFFFF" Width="2" HorizontalAlignment="Left" IsVisible="False" />
                                     </Grid>
                                 </Grid>
                                 <TextBlock x:Name="ClaudeCodeRangeText" Text="" FontSize="8" Foreground="#555555" TextWrapping="Wrap" />
@@ -506,6 +512,16 @@
                                 </Grid>
                                 <TextBlock x:Name="ClaudeCompactDesignPct" Grid.Column="2" Text="—" FontSize="8" Foreground="#FCD4E1" TextAlignment="Right" VerticalAlignment="Center" />
                                 <TextBlock x:Name="ClaudeCompactDesignReset" Grid.Column="3" Text="" FontSize="8" Foreground="#888888" TextAlignment="Right" VerticalAlignment="Center" />
+                            </Grid>
+                            <Grid x:Name="ClaudeCompactFableRow" ColumnDefinitions="58,68,42,*" ClipToBounds="True" IsVisible="False">
+                                <TextBlock Text="Fable 7d" FontSize="9" Foreground="#E2703A" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <Grid Grid.Column="1" Width="62" Height="4" Margin="2,0,4,0" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                    <Border Background="#333333" CornerRadius="2" />
+                                    <Border x:Name="ClaudeCompactFableBar" Background="#E2703A" CornerRadius="2" HorizontalAlignment="Left" Width="0" />
+                                    <Border x:Name="ClaudeCompactFableTick" Background="#FFFFFF" Width="2" HorizontalAlignment="Left" IsVisible="False" />
+                                </Grid>
+                                <TextBlock x:Name="ClaudeCompactFablePct" Grid.Column="2" Text="—" FontSize="8" Foreground="#F7C9AE" TextAlignment="Right" VerticalAlignment="Center" />
+                                <TextBlock x:Name="ClaudeCompactFableReset" Grid.Column="3" Text="" FontSize="8" Foreground="#888888" TextAlignment="Right" VerticalAlignment="Center" />
                             </Grid>
                         </StackPanel>
                     

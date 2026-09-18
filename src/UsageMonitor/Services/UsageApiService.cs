@@ -10,7 +10,7 @@ public record UsageWindow(
     DateTimeOffset? ResetsAt
 );
 
-public record ClaudeBlock(UsageWindow FiveHour, UsageWindow SevenDay, UsageWindow? SevenDayDesign, string? SubscriptionType);
+public record ClaudeBlock(UsageWindow FiveHour, UsageWindow SevenDay, UsageWindow? SevenDayDesign, UsageWindow? SevenDayFable, string? SubscriptionType);
 public record CodexBlock(UsageWindow? Primary, UsageWindow Secondary, UsageWindow? SparkPrimary, UsageWindow? SparkSecondary, string? PlanType, string? CreditsBalance);
 public record ZaiBlock(UsageWindow? FiveHour, UsageWindow? Monthly, long? MonthlyCurrent, long? MonthlyLimit, string? Level);
 public record OpenRouterBlock(double Usage, double? Limit, double? LimitRemaining, bool? IsFreeTier);
@@ -104,10 +104,17 @@ public class UsageApiService : IDisposable
         if (data.TryGetProperty("seven_day_design", out var des) && des.ValueKind == JsonValueKind.Object)
             design = ParseWindow(des, "utilization");
 
+        // Per-model weekly limit, same shape as Design. Absent for accounts that
+        // have never run Fable, so it stays null and the bar simply never shows.
+        UsageWindow? fable = null;
+        if (data.TryGetProperty("seven_day_fable", out var fab) && fab.ValueKind == JsonValueKind.Object)
+            fable = ParseWindow(fab, "utilization");
+
         return new ClaudeBlock(
             ParseWindow(five, "utilization"),
             ParseWindow(seven, "utilization"),
             design,
+            fable,
             ReadString(data, "subscription_type")
         );
     }

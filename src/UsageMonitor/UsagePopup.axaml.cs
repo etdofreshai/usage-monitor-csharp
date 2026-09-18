@@ -89,7 +89,7 @@ public partial class UsagePopup : Window
     private DateTimeOffset? _codexSpark5hReset, _codexSpark7dReset;
     private DateTimeOffset? _codex2FiveHourReset, _codex2SevenDayReset;
     private DateTimeOffset? _codex2SparkFiveHourReset, _codex2SparkSevenDayReset;
-    private DateTimeOffset? _claude5hReset, _claude7dReset, _claudeDesignReset;
+    private DateTimeOffset? _claude5hReset, _claude7dReset, _claudeDesignReset, _claudeFableReset;
     private DateTimeOffset? _claude2FiveHourReset, _claude2SevenDayReset, _claude2DesignReset;
     private DateTimeOffset? _zai5hReset, _zaiMoReset;
     private double? _zai5hPercent, _zaiMoPercent;
@@ -110,6 +110,8 @@ public partial class UsagePopup : Window
     private double? _claude5hExpected, _claude7dExpected;
     private double? _claudeDesignUsed;
     private double? _claudeDesignExpected;
+    private double? _claudeFableUsed;
+    private double? _claudeFableExpected;
     private double _claude2FiveHourUsed, _claude2SevenDayUsed;
     private double? _claude2FiveHourExpected, _claude2SevenDayExpected;
     private double? _claude2DesignUsed;
@@ -140,7 +142,7 @@ public partial class UsagePopup : Window
     private UsageApiStatus? _lastStatus;
 
     // Provider visibility toggles surfaced (in this order) in the tray "Providers" menu.
-    public enum ProviderToggle { OpenAi, OpenRouter, Codex, Codex2, CodexSpark, Claude, Claude2, ClaudeDesign, Claude2Design, Zai, ZaiRequests }
+    public enum ProviderToggle { OpenAi, OpenRouter, Codex, Codex2, CodexSpark, Claude, Claude2, ClaudeDesign, ClaudeFable, Claude2Design, Zai, ZaiRequests }
 
     public static readonly IReadOnlyList<(ProviderToggle Key, string Label)> ProviderToggles = new[]
     {
@@ -152,6 +154,7 @@ public partial class UsagePopup : Window
         (ProviderToggle.Claude, "Claude"),
         (ProviderToggle.Claude2, "Claude2"),
         (ProviderToggle.ClaudeDesign, "Claude Design"),
+        (ProviderToggle.ClaudeFable, "Claude Fable"),
         (ProviderToggle.Claude2Design, "Claude2 Design"),
         (ProviderToggle.Zai, "Z.ai Token Usage"),
         (ProviderToggle.ZaiRequests, "Z.ai Web/MCP Requests"),
@@ -217,6 +220,7 @@ public partial class UsagePopup : Window
         RegisterTargetBar(ClaudeCodePrimaryBar, ClaudeCodePrimaryBarFill, ClaudeCodePrimaryBarTick, Color.FromRgb(0xFF, 0x8A, 0x65));
         RegisterTargetBar(ClaudeCodeSecondaryBar, ClaudeCodeSecondaryBarFill, ClaudeCodeSecondaryBarTick, Color.FromRgb(0xFF, 0xB7, 0x4D));
         RegisterTargetBar(ClaudeDesignBar, ClaudeDesignBarFill, ClaudeDesignBarTick, Color.FromRgb(0xF4, 0x8F, 0xB1));
+        RegisterTargetBar(ClaudeFableBar, ClaudeFableBarFill, ClaudeFableBarTick, Color.FromRgb(0xC2, 0x41, 0x0C));
         RegisterTargetBar(ClaudeCode2PrimaryBar, ClaudeCode2PrimaryBarFill, ClaudeCode2PrimaryBarTick, Color.FromRgb(0xFF, 0x8A, 0x65));
         RegisterTargetBar(ClaudeCode2SecondaryBar, ClaudeCode2SecondaryBarFill, ClaudeCode2SecondaryBarTick, Color.FromRgb(0xFF, 0xB7, 0x4D));
         RegisterTargetBar(ClaudeDesign2Bar, ClaudeDesign2BarFill, ClaudeDesign2BarTick, Color.FromRgb(0xF4, 0x8F, 0xB1));
@@ -1044,6 +1048,7 @@ public partial class UsagePopup : Window
         ProviderToggle.Claude => _config.ShowClaude,
         ProviderToggle.Claude2 => _config.ShowClaude2,
         ProviderToggle.ClaudeDesign => _config.ShowClaudeDesign,
+        ProviderToggle.ClaudeFable => _config.ShowClaudeFable,
         ProviderToggle.Claude2Design => _config.ShowClaude2Design,
         ProviderToggle.Zai => _config.ShowZai,
         ProviderToggle.ZaiRequests => _config.ShowZaiRequests,
@@ -1062,6 +1067,7 @@ public partial class UsagePopup : Window
             case ProviderToggle.Claude: _config.ShowClaude = visible; break;
             case ProviderToggle.Claude2: _config.ShowClaude2 = visible; break;
             case ProviderToggle.ClaudeDesign: _config.ShowClaudeDesign = visible; break;
+            case ProviderToggle.ClaudeFable: _config.ShowClaudeFable = visible; break;
             case ProviderToggle.Claude2Design: _config.ShowClaude2Design = visible; break;
             case ProviderToggle.Zai: _config.ShowZai = visible; break;
             case ProviderToggle.ZaiRequests: _config.ShowZaiRequests = visible; break;
@@ -1372,9 +1378,28 @@ public partial class UsagePopup : Window
             _claudeDesignReset = null;
         }
 
+        var showFable = c.SevenDayFable != null && _config.ShowClaudeFable;
+        ClaudeFableLabel.IsVisible = showFable;
+        ClaudeFableBar.IsVisible = showFable;
+        if (showFable && c.SevenDayFable is { } f)
+        {
+            _claudeFableUsed = Math.Clamp(f.UsedPercent, 0, 100);
+            _claudeFableExpected = f.ExpectedPercent;
+            _claudeFableReset = f.ResetsAt;
+            SetTargetBar(ClaudeFableBar, _claudeFableUsed.Value, _claudeFableExpected);
+        }
+        else
+        {
+            _claudeFableUsed = null;
+            _claudeFableExpected = null;
+            _claudeFableReset = null;
+        }
+
         var range = $"5h: in {FormatResetCountdown(c.FiveHour.ResetsAt)} • 7d: {FormatResetDate(c.SevenDay.ResetsAt)}";
         if (_claudeDesignUsed.HasValue)
             range += $" • Des: {_claudeDesignUsed.Value:F0}%";
+        if (_claudeFableUsed.HasValue)
+            range += $" • Fab: {_claudeFableUsed.Value:F0}%";
         ClaudeCodeRangeText.Text = range;
     }
 
@@ -1655,6 +1680,14 @@ public partial class UsagePopup : Window
             RenderCompactBar(ClaudeCompactDesignBar, ClaudeCompactDesignTick, Color.FromRgb(0xF4, 0x8F, 0xB1), _claudeDesignUsed.Value, _claudeDesignExpected, barWidth);
             SetUsedExpectedInlines(ClaudeCompactDesignPct, _claudeDesignUsed, _claudeDesignExpected);
             ClaudeCompactDesignReset.Text = _claudeDesignReset.HasValue ? FormatResetDate(_claudeDesignReset) : "";
+        }
+
+        ClaudeCompactFableRow.IsVisible = _claudeFableUsed.HasValue;
+        if (_claudeFableUsed.HasValue)
+        {
+            RenderCompactBar(ClaudeCompactFableBar, ClaudeCompactFableTick, Color.FromRgb(0xE2, 0x70, 0x3A), _claudeFableUsed.Value, _claudeFableExpected, barWidth);
+            SetUsedExpectedInlines(ClaudeCompactFablePct, _claudeFableUsed, _claudeFableExpected);
+            ClaudeCompactFableReset.Text = _claudeFableReset.HasValue ? FormatResetDate(_claudeFableReset) : "";
         }
 
         // Second Claude account — fields are cleared whenever the section hides,
