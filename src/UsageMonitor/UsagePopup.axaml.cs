@@ -146,7 +146,8 @@ public partial class UsagePopup : Window
     {
         (ProviderToggle.OpenAi, "OpenAI"),
         (ProviderToggle.OpenRouter, "OpenRouter"),
-        (ProviderToggle.Codex, "Codex"),
+        (ProviderToggle.Codex, "Codex #1"),
+        (ProviderToggle.Codex2, "Codex #2"),
         (ProviderToggle.CodexSpark, "Codex Spark"),
         (ProviderToggle.Claude, "Claude"),
         (ProviderToggle.Claude2, "Claude2"),
@@ -1027,8 +1028,8 @@ public partial class UsagePopup : Window
         RouterLinkCompact.IsVisible = hasUrl;
         if (!hasUrl) return;
 
-        ToolTip.SetTip(RouterButton, $"Open the 9router dashboard\n{url}");
-        ToolTip.SetTip(RouterLinkCompact, $"Open the 9router dashboard\n{url}");
+        ToolTip.SetTip(RouterButton, $"Open the 9gate dashboard\n{url}");
+        ToolTip.SetTip(RouterLinkCompact, $"Open the 9gate dashboard\n{url}");
         RouterButton.Click += (_, _) => OpenUrl(url);
         RouterLinkCompact.PointerPressed += (_, _) => OpenUrl(url);
     }

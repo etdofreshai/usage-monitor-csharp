@@ -290,13 +290,13 @@
                                        Cursor="Hand"
                                        ToolTip.Tip="Open usage dashboard" />
                             <TextBlock x:Name="RouterLinkCompact"
-                                       Text="9router"
+                                       Text="9gate"
                                        FontSize="9"
                                        Foreground="#4DB6AC"
                                        FontWeight="Bold"
                                        VerticalAlignment="Center"
                                        Cursor="Hand"
-                                       ToolTip.Tip="Open the 9router dashboard" />
+                                       ToolTip.Tip="Open the 9gate dashboard" />
                         </StackPanel>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
                             <Button x:Name="UpdateButtonCompact"
@@ -603,8 +603,8 @@
                         BorderThickness="0"
                         CornerRadius="12"
                         Padding="0"
-                        ToolTip.Tip="Open the 9router dashboard">
-                    <TextBlock Text="9router"
+                        ToolTip.Tip="Open the 9gate dashboard">
+                    <TextBlock Text="9gate"
                                FontSize="10"
                                Foreground="#4DB6AC"
                                FontWeight="SemiBold"

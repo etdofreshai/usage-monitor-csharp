@@ -38,11 +38,12 @@ public class Config
     public string OpenRouterUsageUrl { get; set; } = "https://openrouter.ai/credits";
     public string OpenAiUsageUrl { get; set; } = "https://platform.openai.com/usage";
 
-    // 9router's own host, which replaced CLIProxyAPI. This is a link target only: the
-    // monitor polls nothing from it, so it needs no management key. 9router exposes
-    // request/token/cost accounting rather than subscription quota, and the quota
-    // windows above still come from usage-api.
-    public string NineRouterUrl { get; set; } = "http://etzminisforumx1pro.lan:20128";
+    // 9gate, the compatibility proxy that fronts 9router on the same host. Everything
+    // outside its own /_9gate/* admin surface is forwarded upstream verbatim, so the
+    // Quota Tracker resolves through it exactly as it did on 9router's own port. This
+    // is a link target only: the monitor polls nothing from it and needs no key. The
+    // quota windows shown above still come from usage-api.
+    public string NineRouterUrl { get; set; } = "http://etzminisforumx1pro.lan:20129";
 
     // Refresh interval in seconds. Default 5 — usage-api caches snapshots so polling
     // fast is cheap on its end.
