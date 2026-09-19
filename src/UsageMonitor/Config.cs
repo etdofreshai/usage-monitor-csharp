@@ -25,7 +25,7 @@ public class Config
     private static string ConfigDirectory => GetConfigDirectory();
     private static string ConfigFilePath => Path.Combine(ConfigDirectory, "config.json");
 
-    // Where to fetch usage from. The server aggregates Claude/Codex/Z.ai/OpenRouter/OpenAI
+    // Where to fetch usage from. The server aggregates Claude/Codex/Z.ai/Jev/OpenRouter/OpenAI
     // and exposes a single /api/usage endpoint — see https://github.com/etdofreshai/usage-api.
     public string UsageApiUrl { get; set; } = "https://usage.etdofresh.com";
 
@@ -36,6 +36,7 @@ public class Config
     public string ClaudeUsageUrl { get; set; } = "https://claude.ai/settings/usage";
     public string ZaiUsageUrl { get; set; } = "https://z.ai/manage-apikey/apikey-list";
     public string OpenRouterUsageUrl { get; set; } = "https://openrouter.ai/credits";
+    public string JevUsageUrl { get; set; } = "https://openrouter.ai/activity";
     public string OpenAiUsageUrl { get; set; } = "https://platform.openai.com/usage";
 
     // 9gate, the compatibility proxy that fronts 9router on the same host. Everything
@@ -67,6 +68,7 @@ public class Config
     public bool ShowClaude2Design { get; set; } = true;
     public bool ShowOpenAi { get; set; } = true;
     public bool ShowOpenRouter { get; set; } = true;
+    public bool ShowJev { get; set; } = true;
     public bool ShowZai { get; set; } = true;
     public bool ShowZaiRequests { get; set; } = true;
 
@@ -143,6 +145,7 @@ public class Config
         ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_CLAUDE2_DESIGN", nameof(ShowClaude2Design), v => config.ShowClaude2Design = v);
         ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_OPENAI", nameof(ShowOpenAi), v => config.ShowOpenAi = v);
         ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_OPENROUTER", nameof(ShowOpenRouter), v => config.ShowOpenRouter = v);
+        ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_JEV", nameof(ShowJev), v => config.ShowJev = v);
         ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_ZAI", nameof(ShowZai), v => config.ShowZai = v);
         ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_ZAI_REQUESTS", nameof(ShowZaiRequests), v => config.ShowZaiRequests = v);
     }

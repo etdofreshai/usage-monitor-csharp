@@ -15,6 +15,7 @@ public record CodexBlock(UsageWindow? Primary, UsageWindow Secondary, UsageWindo
 public record ZaiBlock(UsageWindow? FiveHour, UsageWindow? Monthly, long? MonthlyCurrent, long? MonthlyLimit, string? Level);
 public record OpenRouterBlock(double Usage, double? Limit, double? LimitRemaining, bool? IsFreeTier);
 public record OpenAiBlock(double SpendToday, double SpendMonth, string Currency);
+public record JevBlock(double Spend1Day, double Spend3Days, double Spend7Days, string Currency);
 
 public record UsageApiStatus(
     DateTimeOffset Timestamp,
@@ -24,7 +25,8 @@ public record UsageApiStatus(
     CodexBlock? Codex2,
     ZaiBlock? Zai,
     OpenRouterBlock? OpenRouter,
-    OpenAiBlock? OpenAi
+    OpenAiBlock? OpenAi,
+    JevBlock? Jev
 );
 
 public class UsageApiService : IDisposable
@@ -64,7 +66,8 @@ public class UsageApiService : IDisposable
                 ParseCodex(GetData(providers, "codex2")),
                 ParseZai(GetData(providers, "zai")),
                 ParseOpenRouter(GetData(providers, "openrouter")),
-                ParseOpenAi(GetData(providers, "openai"))
+                ParseOpenAi(GetData(providers, "openai")),
+                ParseJev(GetData(providers, "jev"))
             );
         }
         catch (Exception ex)
@@ -195,6 +198,17 @@ public class UsageApiService : IDisposable
         return new OpenAiBlock(
             ReadDouble(data, "spend_today") ?? 0,
             ReadDouble(data, "spend_month") ?? 0,
+            ReadString(data, "currency") ?? "USD"
+        );
+    }
+
+    private static JevBlock? ParseJev(JsonElement data)
+    {
+        if (data.ValueKind != JsonValueKind.Object) return null;
+        return new JevBlock(
+            ReadDouble(data, "spend_1d") ?? 0,
+            ReadDouble(data, "spend_3d") ?? 0,
+            ReadDouble(data, "spend_7d") ?? 0,
             ReadString(data, "currency") ?? "USD"
         );
     }

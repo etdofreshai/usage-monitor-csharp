@@ -142,12 +142,13 @@ public partial class UsagePopup : Window
     private UsageApiStatus? _lastStatus;
 
     // Provider visibility toggles surfaced (in this order) in the tray "Providers" menu.
-    public enum ProviderToggle { OpenAi, OpenRouter, Codex, Codex2, CodexSpark, Claude, Claude2, ClaudeDesign, ClaudeFable, Claude2Design, Zai, ZaiRequests }
+    public enum ProviderToggle { OpenAi, OpenRouter, Jev, Codex, Codex2, CodexSpark, Claude, Claude2, ClaudeDesign, ClaudeFable, Claude2Design, Zai, ZaiRequests }
 
     public static readonly IReadOnlyList<(ProviderToggle Key, string Label)> ProviderToggles = new[]
     {
         (ProviderToggle.OpenAi, "OpenAI"),
         (ProviderToggle.OpenRouter, "OpenRouter"),
+        (ProviderToggle.Jev, "Jev Spend"),
         (ProviderToggle.Codex, "Codex #1"),
         (ProviderToggle.Codex2, "Codex #2"),
         (ProviderToggle.CodexSpark, "Codex Spark"),
@@ -348,6 +349,7 @@ public partial class UsagePopup : Window
         MakeLink(ClaudeCode2TitleText, _config.ClaudeUsageUrl);
         MakeLink(ZaiTitleText, _config.ZaiUsageUrl);
         MakeLink(OpenRouterTitleText, _config.OpenRouterUsageUrl);
+        MakeLink(JevTitleText, _config.JevUsageUrl);
         MakeLink(OpenAiTitleText, _config.OpenAiUsageUrl);
 
         WireCompactRowLinks(CodexCompactSection, _config.CodexUsageUrl);
@@ -356,6 +358,7 @@ public partial class UsagePopup : Window
         WireCompactRowLinks(Claude2CompactSection, _config.ClaudeUsageUrl);
         WireCompactRowLinks(ZaiCompactSection, _config.ZaiUsageUrl);
         MakeLink(OpenRouterCompactLabel, _config.OpenRouterUsageUrl);
+        MakeLink(JevCompactLabel, _config.JevUsageUrl);
         MakeLink(OpenAiCompactLabel, _config.OpenAiUsageUrl);
     }
 
@@ -1012,6 +1015,7 @@ public partial class UsagePopup : Window
         {
             ApplyOpenRouter(status.OpenRouter);
             ApplyOpenAi(status.OpenAi);
+            ApplyJev(status.Jev);
             ApplyCodex(status.Codex);
             ApplyCodex2(status.Codex2);
             ApplyClaude(status.Claude);
@@ -1042,6 +1046,7 @@ public partial class UsagePopup : Window
     {
         ProviderToggle.OpenAi => _config.ShowOpenAi,
         ProviderToggle.OpenRouter => _config.ShowOpenRouter,
+        ProviderToggle.Jev => _config.ShowJev,
         ProviderToggle.Codex => _config.ShowCodex,
         ProviderToggle.Codex2 => _config.ShowCodex2,
         ProviderToggle.CodexSpark => _config.ShowCodexSpark,
@@ -1061,6 +1066,7 @@ public partial class UsagePopup : Window
         {
             case ProviderToggle.OpenAi: _config.ShowOpenAi = visible; break;
             case ProviderToggle.OpenRouter: _config.ShowOpenRouter = visible; break;
+            case ProviderToggle.Jev: _config.ShowJev = visible; break;
             case ProviderToggle.Codex: _config.ShowCodex = visible; break;
             case ProviderToggle.Codex2: _config.ShowCodex2 = visible; break;
             case ProviderToggle.CodexSpark: _config.ShowCodexSpark = visible; break;
@@ -1084,6 +1090,7 @@ public partial class UsagePopup : Window
         {
             ApplyOpenRouter(_lastStatus?.OpenRouter);
             ApplyOpenAi(_lastStatus?.OpenAi);
+            ApplyJev(_lastStatus?.Jev);
             ApplyCodex(_lastStatus?.Codex);
             ApplyCodex2(_lastStatus?.Codex2);
             ApplyClaude(_lastStatus?.Claude);
@@ -1108,6 +1115,7 @@ public partial class UsagePopup : Window
         {
             OpenRouterSection,
             OpenAiSection,
+            JevSection,
             CodexSection,
             Codex2Section,
             ClaudeCodeSection,
@@ -1151,6 +1159,19 @@ public partial class UsagePopup : Window
         OpenAiSection.IsVisible = show;
         if (!show || o == null) return;
         OpenAiCreditsText.Text = $"${o.SpendMonth:F2} this month";
+    }
+
+    private static string FormatSpend(double value) =>
+        $"${value.ToString(value < 0.01 ? "F4" : value < 1 ? "F3" : "F2")}";
+
+    private void ApplyJev(JevBlock? j)
+    {
+        var show = j != null && _config.ShowJev;
+        JevSection.IsVisible = show;
+        if (!show || j == null) return;
+        var text = $"1d {FormatSpend(j.Spend1Day)}  •  3d {FormatSpend(j.Spend3Days)}  •  7d {FormatSpend(j.Spend7Days)}";
+        JevSpendText.Text = text;
+        JevCompactText.Text = text;
     }
 
     private void ApplyCodex(CodexBlock? c)
@@ -1599,6 +1620,7 @@ public partial class UsagePopup : Window
         // AI one-liners
         OpenRouterCompactSection.IsVisible = OpenRouterSection.IsVisible;
         OpenAiCompactRow.IsVisible = OpenAiSection.IsVisible;
+        JevCompactRow.IsVisible = JevSection.IsVisible;
         CodexCompactSection.IsVisible = CodexSection.IsVisible;
         Codex2CompactSection.IsVisible = Codex2Section.IsVisible;
         ClaudeCompactSection.IsVisible = ClaudeCodeSection.IsVisible;

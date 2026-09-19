@@ -46,7 +46,7 @@ floating popup panel. Built with Avalonia UI.
 
 - **App** - Application entry point. Creates a hidden window, system tray icon, and the usage popup. Tray icon click toggles the popup visibility.
 
-- **UsagePopup** - Borderless, topmost, transparent window that floats above all other windows. Positioned near the taskbar. Two sections: System stats (CPU, memory, disk, network, uptime) and AI Credits (Codex incl. Spark, Claude + Claude2 each incl. a Design bar, Z.ai, plus OpenRouter/OpenAI when present). Each AI provider can be shown/hidden from the tray "Providers" menu (see Config). Has an X button to close/hide and supports dragging from the title bar.
+- **UsagePopup** - Borderless, topmost, transparent window that floats above all other windows. Positioned near the taskbar. Two sections: System stats (CPU, memory, disk, network, uptime) and AI Credits (Codex incl. Spark, Claude + Claude2 each incl. a Design bar, Z.ai, Jev spend, plus OpenRouter/OpenAI when present). Each AI provider can be shown/hidden from the tray "Providers" menu (see Config). Has an X button to close/hide and supports dragging from the title bar.
 
 - **Program** - Entry point. Acquires a process-lifetime single-instance lock
   (`instance.lock`, an exclusive `FileShare.None` file under the app-data dir) before

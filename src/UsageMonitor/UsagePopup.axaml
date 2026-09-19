@@ -92,6 +92,13 @@
                         </Grid>
                     </Border>
 
+                    <Border x:Name="JevSection" Grid.Row="0" Grid.Column="0" Background="#222222" CornerRadius="8" Padding="8" IsVisible="False">
+                        <Grid ColumnDefinitions="Auto,*">
+                            <TextBlock x:Name="JevTitleText" Text="Jev" FontSize="10" Foreground="#F0C674" FontWeight="Medium" />
+                            <TextBlock x:Name="JevSpendText" Text="—" FontSize="9" Foreground="#FFE3A3" Grid.Column="1" HorizontalAlignment="Right" TextAlignment="Right" />
+                        </Grid>
+                    </Border>
+
                         <Border x:Name="CodexSection" Grid.Row="1" Grid.Column="0" Background="#222222" CornerRadius="8" Padding="8" Margin="0,3,3,0" IsVisible="False">
                             <StackPanel Spacing="3">
                                 <Grid ColumnDefinitions="*,Auto">
@@ -383,6 +390,10 @@
                     <Grid x:Name="OpenRouterCompactSection" ColumnDefinitions="62,*">
                         <TextBlock x:Name="OpenRouterCompactLabel" Text="OpenRouter" FontSize="9" Foreground="#4FC3F7" FontWeight="SemiBold" />
                         <TextBlock x:Name="OpenRouterCompactText" Text="—" FontSize="8" Foreground="#BDEEFF" Grid.Column="1" HorizontalAlignment="Right" TextAlignment="Right" />
+                    </Grid>
+                    <Grid x:Name="JevCompactRow" ColumnDefinitions="62,*" IsVisible="False">
+                        <TextBlock x:Name="JevCompactLabel" Text="Jev" FontSize="9" Foreground="#F0C674" FontWeight="SemiBold" />
+                        <TextBlock x:Name="JevCompactText" Text="—" FontSize="8" Foreground="#FFE3A3" Grid.Column="1" HorizontalAlignment="Right" TextAlignment="Right" />
                     </Grid>
                     <Grid x:Name="OpenAiCompactRow" ColumnDefinitions="62,*" IsVisible="False">
                         <TextBlock x:Name="OpenAiCompactLabel" Text="OpenAI" FontSize="9" Foreground="#10A37F" FontWeight="SemiBold" />
