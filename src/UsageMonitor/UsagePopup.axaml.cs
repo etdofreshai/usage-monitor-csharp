@@ -456,6 +456,7 @@ public partial class UsagePopup : Window
         SetViewMode(PopupViewMode.Compact, anchorBottomRight: false);
         PinToTaskbarCorner();
         Show();
+        MacWindowPresenter.BringToFront(this);
         RefreshSystem();
         _systemRefreshTimer.Start();
 
