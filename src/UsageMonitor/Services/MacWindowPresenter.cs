@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Avalonia;
 using Avalonia.Controls;
 
 namespace UsageMonitor.Services;
@@ -18,7 +19,29 @@ internal static class MacWindowPresenter
     private static readonly nuint CanJoinAllApplications = (nuint)1 << 18;
     private const nint FloatingWindowLevel = 3;
 
-    public static void BringToFront(Window window)
+    public static bool TryGetPointerPosition(out PixelPoint position)
+    {
+        position = default;
+        if (!OperatingSystem.IsMacOS())
+            return false;
+
+        var mouseEvent = CGEventCreate(0);
+        if (mouseEvent == 0)
+            return false;
+
+        try
+        {
+            var location = CGEventGetLocation(mouseEvent);
+            position = new PixelPoint((int)Math.Round(location.X), (int)Math.Round(location.Y));
+            return true;
+        }
+        finally
+        {
+            CFRelease(mouseEvent);
+        }
+    }
+
+    public static void BringToFront(Window window, bool relocate = false)
     {
         if (!OperatingSystem.IsMacOS())
             return;
@@ -31,11 +54,13 @@ internal static class MacWindowPresenter
         {
             var nativeWindow = platformHandle.Handle;
             var behavior = SendNUInt(nativeWindow, Selector("collectionBehavior"));
-            behavior &= ~(MoveToActiveSpace | Managed | Stationary | ParticipatesInCycle | Primary | Auxiliary);
-            behavior |= CanJoinAllSpaces | CanJoinAllApplications | Transient | IgnoresCycle | FullScreenAuxiliary;
+            behavior &= ~(CanJoinAllSpaces | Managed | Stationary | ParticipatesInCycle | Primary | Auxiliary);
+            behavior |= MoveToActiveSpace | CanJoinAllApplications | Transient | IgnoresCycle | FullScreenAuxiliary;
 
             SendVoidNUInt(nativeWindow, Selector("setCollectionBehavior:"), behavior);
             SendVoidNInt(nativeWindow, Selector("setLevel:"), FloatingWindowLevel);
+            if (relocate)
+                SendVoidNInt(nativeWindow, Selector("orderOut:"), 0);
             SendVoid(nativeWindow, Selector("orderFrontRegardless"));
         }
         catch (Exception ex)
@@ -49,6 +74,15 @@ internal static class MacWindowPresenter
     [DllImport("/usr/lib/libobjc.A.dylib")]
     private static extern nint sel_registerName(string name);
 
+    [DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
+    private static extern nint CGEventCreate(nint source);
+
+    [DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
+    private static extern CGPoint CGEventGetLocation(nint mouseEvent);
+
+    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+    private static extern void CFRelease(nint value);
+
     [DllImport("/usr/lib/libobjc.A.dylib", EntryPoint = "objc_msgSend")]
     private static extern nuint SendNUInt(nint receiver, nint selector);
 
@@ -60,4 +94,11 @@ internal static class MacWindowPresenter
 
     [DllImport("/usr/lib/libobjc.A.dylib", EntryPoint = "objc_msgSend")]
     private static extern void SendVoidNUInt(nint receiver, nint selector, nuint value);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private readonly struct CGPoint
+    {
+        public readonly double X;
+        public readonly double Y;
+    }
 }

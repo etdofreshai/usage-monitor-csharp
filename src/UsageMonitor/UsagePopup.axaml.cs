@@ -47,6 +47,7 @@ public partial class UsagePopup : Window
     // view-mode switches) does not push the bottom edge past the taskbar.
     // Cleared the moment the user drags, so a dragged window stays put.
     private PixelPoint? _anchorBottomRight;
+    private double _anchorScaling = 1;
 
     // Network tracking
     private long _lastBytesSent;
@@ -264,21 +265,26 @@ public partial class UsagePopup : Window
 
     private void PinToTaskbarCorner()
     {
-        if (Screens.Primary is not { } screen) return;
+        var screen = OperatingSystem.IsMacOS()
+            && MacWindowPresenter.TryGetPointerPosition(out var pointer)
+                ? Screens.ScreenFromPoint(pointer) ?? Screens.Primary
+                : Screens.Primary;
+        if (screen is null) return;
+
         var workArea = screen.WorkingArea;
-        var scaling = screen.Scaling;
-        var margin = (int)(4 * scaling);
+        _anchorScaling = screen.Scaling;
+        var margin = (int)(4 * _anchorScaling);
         _anchorBottomRight = new PixelPoint(
             workArea.X + workArea.Width - margin,
             workArea.Y + workArea.Height - margin);
+        ReanchorIfPinned();
     }
 
     private void ReanchorIfPinned()
     {
         if (_anchorBottomRight is not PixelPoint anchor) return;
-        var scaling = Screens.Primary?.Scaling ?? 1;
-        var pixelW = (int)(Bounds.Width * scaling);
-        var pixelH = (int)(Bounds.Height * scaling);
+        var pixelW = (int)(Bounds.Width * _anchorScaling);
+        var pixelH = (int)(Bounds.Height * _anchorScaling);
         Position = new PixelPoint(anchor.X - pixelW, anchor.Y - pixelH);
     }
 
@@ -456,7 +462,7 @@ public partial class UsagePopup : Window
         SetViewMode(PopupViewMode.Compact, anchorBottomRight: false);
         PinToTaskbarCorner();
         Show();
-        MacWindowPresenter.BringToFront(this);
+        MacWindowPresenter.BringToFront(this, relocate: true);
         DispatcherTimer.RunOnce(
             () => MacWindowPresenter.BringToFront(this),
             TimeSpan.FromMilliseconds(100),
