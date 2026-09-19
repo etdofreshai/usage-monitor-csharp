@@ -39,6 +39,7 @@ public partial class UsagePopup : Window
 
     // Drag state
     private bool _isDragging;
+    private int _lastExternalFrontmostProcessId;
     private PixelPoint _dragStartScreenPoint;
     private PixelPoint _windowStartPosition;
 
@@ -453,6 +454,7 @@ public partial class UsagePopup : Window
     {
         SetViewMode(PopupViewMode.Compact, anchorBottomRight: false);
         PinToTaskbarCorner();
+        RememberFrontmostApplication();
         Show();
         MacWindowPresenter.BringToFront(this, relocate: true);
         DispatcherTimer.RunOnce(
@@ -562,6 +564,7 @@ public partial class UsagePopup : Window
     {
         try
         {
+            RememberFrontmostApplication();
             UpdateCpu();
             UpdateMemory();
             UpdateDisk();
@@ -1949,6 +1952,7 @@ public partial class UsagePopup : Window
                 return;
 
             var pos = point.Position;
+            RememberFrontmostApplication();
             _isDragging = true;
             _anchorBottomRight = null;
             var screenPos = this.PointToScreen(pos);
@@ -1980,7 +1984,19 @@ public partial class UsagePopup : Window
         {
             _isDragging = false;
             e.Pointer.Capture(null);
+            var processId = _lastExternalFrontmostProcessId;
+            DispatcherTimer.RunOnce(
+                () => MacWindowPresenter.ActivateApplication(processId),
+                TimeSpan.FromMilliseconds(50),
+                DispatcherPriority.Loaded);
         }
+    }
+
+    private void RememberFrontmostApplication()
+    {
+        var processId = MacWindowPresenter.GetFrontmostApplicationProcessId();
+        if (processId > 0 && processId != Environment.ProcessId)
+            _lastExternalFrontmostProcessId = processId;
     }
 
     #endregion
