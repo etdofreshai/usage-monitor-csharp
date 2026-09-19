@@ -5,8 +5,8 @@ namespace UsageMonitor.Services;
 
 internal static class MacWindowPresenter
 {
-    private const nuint MoveToActiveSpace = 1UL << 1;
-    private const nuint FullScreenAuxiliary = 1UL << 8;
+    private static readonly nuint MoveToActiveSpace = (nuint)1 << 1;
+    private static readonly nuint FullScreenAuxiliary = (nuint)1 << 8;
     private const nint FloatingWindowLevel = 3;
 
     public static void BringToFront(Window window)
@@ -22,7 +22,7 @@ internal static class MacWindowPresenter
         {
             var nativeWindow = platformHandle.Handle;
             var behavior = SendNUInt(nativeWindow, Selector("collectionBehavior"));
-            behavior &= ~1UL; // CanJoinAllSpaces conflicts with MoveToActiveSpace.
+            behavior &= ~(nuint)1; // CanJoinAllSpaces conflicts with MoveToActiveSpace.
             behavior |= MoveToActiveSpace | FullScreenAuxiliary;
 
             SendVoidNUInt(nativeWindow, Selector("setCollectionBehavior:"), behavior);
