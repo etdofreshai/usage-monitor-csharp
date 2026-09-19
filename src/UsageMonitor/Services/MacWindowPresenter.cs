@@ -7,7 +7,15 @@ internal static class MacWindowPresenter
 {
     private static readonly nuint CanJoinAllSpaces = (nuint)1;
     private static readonly nuint MoveToActiveSpace = (nuint)1 << 1;
+    private static readonly nuint Managed = (nuint)1 << 2;
+    private static readonly nuint Transient = (nuint)1 << 3;
+    private static readonly nuint Stationary = (nuint)1 << 4;
+    private static readonly nuint ParticipatesInCycle = (nuint)1 << 5;
+    private static readonly nuint IgnoresCycle = (nuint)1 << 6;
     private static readonly nuint FullScreenAuxiliary = (nuint)1 << 8;
+    private static readonly nuint Primary = (nuint)1 << 16;
+    private static readonly nuint Auxiliary = (nuint)1 << 17;
+    private static readonly nuint CanJoinAllApplications = (nuint)1 << 18;
     private const nint FloatingWindowLevel = 3;
 
     public static void BringToFront(Window window)
@@ -23,8 +31,8 @@ internal static class MacWindowPresenter
         {
             var nativeWindow = platformHandle.Handle;
             var behavior = SendNUInt(nativeWindow, Selector("collectionBehavior"));
-            behavior &= ~MoveToActiveSpace;
-            behavior |= CanJoinAllSpaces | FullScreenAuxiliary;
+            behavior &= ~(MoveToActiveSpace | Managed | Stationary | ParticipatesInCycle | Primary | Auxiliary);
+            behavior |= CanJoinAllSpaces | CanJoinAllApplications | Transient | IgnoresCycle | FullScreenAuxiliary;
 
             SendVoidNUInt(nativeWindow, Selector("setCollectionBehavior:"), behavior);
             SendVoidNInt(nativeWindow, Selector("setLevel:"), FloatingWindowLevel);

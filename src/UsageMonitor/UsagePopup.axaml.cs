@@ -457,6 +457,10 @@ public partial class UsagePopup : Window
         PinToTaskbarCorner();
         Show();
         MacWindowPresenter.BringToFront(this);
+        DispatcherTimer.RunOnce(
+            () => MacWindowPresenter.BringToFront(this),
+            TimeSpan.FromMilliseconds(100),
+            DispatcherPriority.Loaded);
         RefreshSystem();
         _systemRefreshTimer.Start();
 
