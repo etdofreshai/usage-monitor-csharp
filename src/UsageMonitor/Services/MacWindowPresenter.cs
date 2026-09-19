@@ -56,8 +56,8 @@ internal static class MacWindowPresenter
             var nativeWindow = platformHandle.Handle;
             var styleMask = SendNUInt(nativeWindow, Selector("styleMask"));
             var behavior = SendNUInt(nativeWindow, Selector("collectionBehavior"));
-            behavior &= ~(CanJoinAllSpaces | Managed | Stationary | ParticipatesInCycle | Primary | Auxiliary);
-            behavior |= MoveToActiveSpace | CanJoinAllApplications | Transient | IgnoresCycle | FullScreenAuxiliary;
+            behavior &= ~(MoveToActiveSpace | Managed | Stationary | ParticipatesInCycle | Primary | Auxiliary);
+            behavior |= CanJoinAllSpaces | CanJoinAllApplications | Transient | IgnoresCycle | FullScreenAuxiliary;
 
             SendVoidNUInt(nativeWindow, Selector("setStyleMask:"), styleMask | NonactivatingPanelStyle);
             SendVoidByte(nativeWindow, Selector("setHidesOnDeactivate:"), 0);
