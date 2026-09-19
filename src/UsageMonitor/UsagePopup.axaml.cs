@@ -464,8 +464,8 @@ public partial class UsagePopup : Window
         Show();
         MacWindowPresenter.BringToFront(this, relocate: true);
         DispatcherTimer.RunOnce(
-            () => MacWindowPresenter.BringToFront(this),
-            TimeSpan.FromMilliseconds(100),
+            () => MacWindowPresenter.BringToFront(this, relocate: true),
+            TimeSpan.FromMilliseconds(250),
             DispatcherPriority.Loaded);
         RefreshSystem();
         _systemRefreshTimer.Start();
