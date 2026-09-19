@@ -17,6 +17,7 @@ internal static class MacWindowPresenter
     private static readonly nuint Primary = (nuint)1 << 16;
     private static readonly nuint Auxiliary = (nuint)1 << 17;
     private static readonly nuint CanJoinAllApplications = (nuint)1 << 18;
+    private static readonly nuint NonactivatingPanelStyle = (nuint)1 << 7;
     private const nint FloatingWindowLevel = 3;
 
     public static bool TryGetPointerPosition(out PixelPoint position)
@@ -53,10 +54,13 @@ internal static class MacWindowPresenter
         try
         {
             var nativeWindow = platformHandle.Handle;
+            var styleMask = SendNUInt(nativeWindow, Selector("styleMask"));
             var behavior = SendNUInt(nativeWindow, Selector("collectionBehavior"));
             behavior &= ~(CanJoinAllSpaces | Managed | Stationary | ParticipatesInCycle | Primary | Auxiliary);
             behavior |= MoveToActiveSpace | CanJoinAllApplications | Transient | IgnoresCycle | FullScreenAuxiliary;
 
+            SendVoidNUInt(nativeWindow, Selector("setStyleMask:"), styleMask | NonactivatingPanelStyle);
+            SendVoidByte(nativeWindow, Selector("setHidesOnDeactivate:"), 0);
             SendVoidNUInt(nativeWindow, Selector("setCollectionBehavior:"), behavior);
             SendVoidNInt(nativeWindow, Selector("setLevel:"), FloatingWindowLevel);
             if (relocate)
@@ -88,6 +92,9 @@ internal static class MacWindowPresenter
 
     [DllImport("/usr/lib/libobjc.A.dylib", EntryPoint = "objc_msgSend")]
     private static extern void SendVoid(nint receiver, nint selector);
+
+    [DllImport("/usr/lib/libobjc.A.dylib", EntryPoint = "objc_msgSend")]
+    private static extern void SendVoidByte(nint receiver, nint selector, byte value);
 
     [DllImport("/usr/lib/libobjc.A.dylib", EntryPoint = "objc_msgSend")]
     private static extern void SendVoidNInt(nint receiver, nint selector, nint value);
