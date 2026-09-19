@@ -142,7 +142,7 @@ public class UpdateChecker : IDisposable
         }
     }
 
-    public static bool RestartApp()
+    public static bool RestartApp(int restoreFocusProcessId = 0)
     {
         try
         {
@@ -171,6 +171,11 @@ public class UpdateChecker : IDisposable
             // Tells the new instance to wait briefly for this one to release the
             // single-instance lock instead of exiting as a "second instance".
             psi.ArgumentList.Add("--from-restart");
+            if (restoreFocusProcessId > 0)
+            {
+                psi.ArgumentList.Add("--restore-focus-pid");
+                psi.ArgumentList.Add(restoreFocusProcessId.ToString());
+            }
             return Process.Start(psi) is not null;
         }
         catch (Exception ex)

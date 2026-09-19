@@ -224,7 +224,20 @@ public partial class App : Application
             var startedFromLogin = Environment.GetCommandLineArgs()
                 .Any(a => string.Equals(a, "--from-login", StringComparison.OrdinalIgnoreCase));
             if (!startedFromLogin)
-                Dispatcher.UIThread.Post(() => _popup.ShowPopup());
+            {
+                var restoreFocusProcessId = GetArgumentInt("--restore-focus-pid");
+                Dispatcher.UIThread.Post(() =>
+                {
+                    _popup.ShowPopup();
+                    if (restoreFocusProcessId > 0)
+                    {
+                        DispatcherTimer.RunOnce(
+                            () => MacWindowPresenter.ActivateApplication(restoreFocusProcessId),
+                            TimeSpan.FromMilliseconds(150),
+                            DispatcherPriority.Loaded);
+                    }
+                });
+            }
         }
 
         base.OnFrameworkInitializationCompleted();
@@ -245,11 +258,28 @@ public partial class App : Application
 
         if (OperatingSystem.IsMacOS())
         {
-            if (UpdateChecker.RestartApp())
+            var restoreFocusProcessId = _popup.LastExternalFrontmostProcessId;
+            if (UpdateChecker.RestartApp(restoreFocusProcessId))
+            {
+                MacWindowPresenter.ActivateApplication(restoreFocusProcessId);
                 _popup.ForceClose();
+            }
             return;
         }
 
         _popup.ShowPopup();
+    }
+
+    private static int GetArgumentInt(string name)
+    {
+        var args = Environment.GetCommandLineArgs();
+        for (var index = 0; index < args.Length - 1; index++)
+        {
+            if (string.Equals(args[index], name, StringComparison.OrdinalIgnoreCase)
+                && int.TryParse(args[index + 1], out var value))
+                return value;
+        }
+
+        return 0;
     }
 }

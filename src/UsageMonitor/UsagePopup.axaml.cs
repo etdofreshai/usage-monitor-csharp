@@ -68,6 +68,8 @@ public partial class UsagePopup : Window
 
     public sealed record DriveToggle(string Key, string Label);
 
+    public int LastExternalFrontmostProcessId => _lastExternalFrontmostProcessId;
+
     private sealed class DriveDisplay
     {
         public required DriveInfo Drive { get; init; }
