@@ -449,14 +449,6 @@ public partial class UsagePopup : Window
         return Color.FromArgb(L(a.A, b.A), L(a.R, b.R), L(a.G, b.G), L(a.B, b.B));
     }
 
-    public void TogglePopup()
-    {
-        if (IsVisible)
-            HidePopup();
-        else
-            ShowPopup();
-    }
-
     public void ShowPopup()
     {
         SetViewMode(PopupViewMode.Compact, anchorBottomRight: false);
@@ -492,6 +484,12 @@ public partial class UsagePopup : Window
         _aiRefreshTimer.Stop();
         _usageApiService?.Dispose();
         _updateChecker?.Dispose();
+    }
+
+    public void CloseForReplacement()
+    {
+        PrepareShutdown();
+        Close();
     }
 
     public void ForceClose()

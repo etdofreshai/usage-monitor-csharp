@@ -50,7 +50,7 @@ public partial class App : Application
             var trayMenu = new NativeMenu();
 
             var showItem = new NativeMenuItem("Show Usage Monitor");
-            showItem.Click += (s, e) => Dispatcher.UIThread.Post(() => _popup.TogglePopup());
+            showItem.Click += (s, e) => QueueShowUsageMonitor();
             trayMenu.Items.Add(showItem);
 
             var checkForUpdatesItem = new NativeMenuItem("Check for Updates");
@@ -189,8 +189,8 @@ public partial class App : Application
                 IsVisible = true
             };
 
-            // Click tray icon to toggle popup
-            _trayIcon.Clicked += (s, e) => Dispatcher.UIThread.Post(() => _popup.TogglePopup());
+            // Clicking always shows and resets the popup; hiding remains an explicit X action.
+            _trayIcon.Clicked += (s, e) => QueueShowUsageMonitor();
 
             var icons = new TrayIcons { _trayIcon };
             SetValue(TrayIcon.IconsProperty, icons);
@@ -228,5 +228,27 @@ public partial class App : Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    private void QueueShowUsageMonitor()
+    {
+        DispatcherTimer.RunOnce(
+            ShowUsageMonitor,
+            OperatingSystem.IsMacOS() ? TimeSpan.FromMilliseconds(250) : TimeSpan.Zero,
+            DispatcherPriority.Loaded);
+    }
+
+    private void ShowUsageMonitor()
+    {
+        if (_popup is null)
+            return;
+
+        if (OperatingSystem.IsMacOS())
+        {
+            _popup.CloseForReplacement();
+            _popup = new UsagePopup();
+        }
+
+        _popup.ShowPopup();
     }
 }
