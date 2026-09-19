@@ -41,36 +41,14 @@ internal static class MacWindowPresenter
         }
     }
 
-    public static void PrepareForActiveSpace(Window window)
-    {
-        if (OperatingSystem.IsMacOS())
-            Configure(window);
-    }
-
-    public static void BringToFront(Window window)
+    public static void BringToFront(Window window, bool relocate = false)
     {
         if (!OperatingSystem.IsMacOS())
             return;
 
-        var nativeWindow = Configure(window);
-        if (nativeWindow == 0)
-            return;
-
-        try
-        {
-            SendVoid(nativeWindow, Selector("orderFrontRegardless"));
-        }
-        catch (Exception ex)
-        {
-            AppLog.WriteLine($"macOS popup ordering failed: {ex.Message}");
-        }
-    }
-
-    private static nint Configure(Window window)
-    {
         var platformHandle = window.TryGetPlatformHandle();
         if (platformHandle is null || platformHandle.HandleDescriptor != "NSWindow")
-            return 0;
+            return;
 
         try
         {
@@ -81,12 +59,13 @@ internal static class MacWindowPresenter
 
             SendVoidNUInt(nativeWindow, Selector("setCollectionBehavior:"), behavior);
             SendVoidNInt(nativeWindow, Selector("setLevel:"), FloatingWindowLevel);
-            return nativeWindow;
+            if (relocate)
+                SendVoidNInt(nativeWindow, Selector("orderOut:"), 0);
+            SendVoid(nativeWindow, Selector("orderFrontRegardless"));
         }
         catch (Exception ex)
         {
             AppLog.WriteLine($"macOS popup activation failed: {ex.Message}");
-            return 0;
         }
     }
 

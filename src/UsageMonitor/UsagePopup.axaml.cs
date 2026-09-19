@@ -453,12 +453,11 @@ public partial class UsagePopup : Window
     {
         SetViewMode(PopupViewMode.Compact, anchorBottomRight: false);
         PinToTaskbarCorner();
-        MacWindowPresenter.PrepareForActiveSpace(this);
         Show();
-        MacWindowPresenter.BringToFront(this);
+        MacWindowPresenter.BringToFront(this, relocate: true);
         DispatcherTimer.RunOnce(
             () => MacWindowPresenter.BringToFront(this),
-            TimeSpan.FromMilliseconds(250),
+            TimeSpan.FromMilliseconds(100),
             DispatcherPriority.Loaded);
         RefreshSystem();
         _systemRefreshTimer.Start();
