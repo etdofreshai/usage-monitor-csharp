@@ -245,8 +245,9 @@ public partial class App : Application
 
         if (OperatingSystem.IsMacOS())
         {
-            _popup.CloseForReplacement();
-            _popup = new UsagePopup();
+            if (UpdateChecker.RestartApp())
+                _popup.ForceClose();
+            return;
         }
 
         _popup.ShowPopup();

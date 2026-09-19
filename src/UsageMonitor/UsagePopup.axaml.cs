@@ -486,12 +486,6 @@ public partial class UsagePopup : Window
         _updateChecker?.Dispose();
     }
 
-    public void CloseForReplacement()
-    {
-        PrepareShutdown();
-        Close();
-    }
-
     public void ForceClose()
     {
         // A double-activated Quit posts this twice; the second pass must not call
@@ -518,8 +512,8 @@ public partial class UsagePopup : Window
             var success = await _updateChecker.ApplyUpdateAsync();
             if (success)
             {
-                if (!_updateChecker.RestartScheduled)
-                    UpdateChecker.RestartApp();
+                if (!_updateChecker.RestartScheduled && !UpdateChecker.RestartApp())
+                    return;
                 ForceClose();
             }
         }

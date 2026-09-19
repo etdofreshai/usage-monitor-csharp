@@ -142,25 +142,41 @@ public class UpdateChecker : IDisposable
         }
     }
 
-    public static void RestartApp()
+    public static bool RestartApp()
     {
         try
         {
             var exePath = Process.GetCurrentProcess().MainModule?.FileName;
-            if (string.IsNullOrEmpty(exePath)) return;
-            var psi = new ProcessStartInfo
+            if (string.IsNullOrEmpty(exePath)) return false;
+
+            ProcessStartInfo psi;
+            if (OperatingSystem.IsMacOS() && TryGetCurrentAppBundlePath(out var appPath))
             {
-                FileName = exePath,
-                UseShellExecute = true,
-            };
+                psi = new ProcessStartInfo("/usr/bin/open")
+                {
+                    UseShellExecute = false,
+                };
+                psi.ArgumentList.Add("-n");
+                psi.ArgumentList.Add(appPath);
+                psi.ArgumentList.Add("--args");
+            }
+            else
+            {
+                psi = new ProcessStartInfo(exePath)
+                {
+                    UseShellExecute = true,
+                };
+            }
+
             // Tells the new instance to wait briefly for this one to release the
             // single-instance lock instead of exiting as a "second instance".
             psi.ArgumentList.Add("--from-restart");
-            Process.Start(psi);
+            return Process.Start(psi) is not null;
         }
         catch (Exception ex)
         {
             AppLog.WriteLine($"UpdateChecker restart failed: {ex.Message}");
+            return false;
         }
     }
 
