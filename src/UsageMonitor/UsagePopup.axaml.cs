@@ -1651,7 +1651,7 @@ public partial class UsagePopup : Window
             SetUsedExpectedInlines(CodexCompact5hPct, _codex5hUsed, _codex5hExpected);
         SetUsedExpectedInlines(CodexCompact7dPct, _codex7dUsed, _codex7dExpected);
         CodexCompact5hReset.Text = _codex5hReset.HasValue ? $"in {FormatResetCountdown(_codex5hReset)}" : "";
-        CodexCompact7dReset.Text = _codex7dReset.HasValue ? FormatResetDate(_codex7dReset, "M/d") : "";
+        CodexCompact7dReset.Text = _codex7dReset.HasValue ? FormatResetDate(_codex7dReset) : "";
 
         CodexCompactSpark5hRow.IsVisible = _codexSpark5hUsed.HasValue;
         if (_codexSpark5hUsed.HasValue)
@@ -1665,7 +1665,7 @@ public partial class UsagePopup : Window
         {
             RenderCompactBar(CodexCompactSpark7dBar, CodexCompactSpark7dTick, Color.FromRgb(0x4D, 0xB6, 0xAC), _codexSpark7dUsed.Value, _codexSpark7dExpected, barWidth);
             SetUsedExpectedInlines(CodexCompactSpark7dPct, _codexSpark7dUsed, _codexSpark7dExpected);
-            CodexCompactSpark7dReset.Text = _codexSpark7dReset.HasValue ? FormatResetDate(_codexSpark7dReset, "M/d") : "";
+            CodexCompactSpark7dReset.Text = _codexSpark7dReset.HasValue ? FormatResetDate(_codexSpark7dReset) : "";
         }
 
         Codex2CompactFiveHourRow.IsVisible = _codex2FiveHourUsed.HasValue;
@@ -1679,7 +1679,7 @@ public partial class UsagePopup : Window
             }
             RenderCompactBar(Codex2CompactSevenDayBar, Codex2CompactSevenDayTick, Color.FromRgb(0x90, 0xCA, 0xF9), _codex2SevenDayUsed, _codex2SevenDayExpected, barWidth);
             SetUsedExpectedInlines(Codex2CompactSevenDayPercent, _codex2SevenDayUsed, _codex2SevenDayExpected);
-            Codex2CompactSevenDayReset.Text = _codex2SevenDayReset.HasValue ? FormatResetDate(_codex2SevenDayReset, "M/d") : "";
+            Codex2CompactSevenDayReset.Text = _codex2SevenDayReset.HasValue ? FormatResetDate(_codex2SevenDayReset) : "";
         }
 
         Codex2CompactSparkFiveHourRow.IsVisible = _codex2SparkFiveHourUsed.HasValue && Codex2Section.IsVisible;
@@ -1694,7 +1694,7 @@ public partial class UsagePopup : Window
         {
             RenderCompactBar(Codex2CompactSparkSevenDayBar, Codex2CompactSparkSevenDayTick, Color.FromRgb(0xB3, 0x9D, 0xDB), _codex2SparkSevenDayUsed.Value, _codex2SparkSevenDayExpected, barWidth);
             SetUsedExpectedInlines(Codex2CompactSparkSevenDayPercent, _codex2SparkSevenDayUsed, _codex2SparkSevenDayExpected);
-            Codex2CompactSparkSevenDayReset.Text = _codex2SparkSevenDayReset.HasValue ? FormatResetDate(_codex2SparkSevenDayReset, "M/d") : "";
+            Codex2CompactSparkSevenDayReset.Text = _codex2SparkSevenDayReset.HasValue ? FormatResetDate(_codex2SparkSevenDayReset) : "";
         }
 
         RenderCompactBar(ClaudeCompact5hBar, ClaudeCompact5hTick, Color.FromRgb(0xFF, 0x8A, 0x65), _claude5hUsed, _claude5hExpected, barWidth);
@@ -1702,14 +1702,14 @@ public partial class UsagePopup : Window
         SetUsedExpectedInlines(ClaudeCompact5hPct, _claude5hUsed, _claude5hExpected);
         SetUsedExpectedInlines(ClaudeCompact7dPct, _claude7dUsed, _claude7dExpected);
         ClaudeCompact5hReset.Text = _claude5hReset.HasValue ? $"in {FormatResetCountdown(_claude5hReset)}" : "";
-        ClaudeCompact7dReset.Text = _claude7dReset.HasValue ? FormatResetDate(_claude7dReset, "M/d") : "";
+        ClaudeCompact7dReset.Text = _claude7dReset.HasValue ? FormatResetDate(_claude7dReset) : "";
 
         ClaudeCompactDesignRow.IsVisible = _claudeDesignUsed.HasValue;
         if (_claudeDesignUsed.HasValue)
         {
             RenderCompactBar(ClaudeCompactDesignBar, ClaudeCompactDesignTick, Color.FromRgb(0xF4, 0x8F, 0xB1), _claudeDesignUsed.Value, _claudeDesignExpected, barWidth);
             SetUsedExpectedInlines(ClaudeCompactDesignPct, _claudeDesignUsed, _claudeDesignExpected);
-            ClaudeCompactDesignReset.Text = _claudeDesignReset.HasValue ? FormatResetDate(_claudeDesignReset, "M/d") : "";
+            ClaudeCompactDesignReset.Text = _claudeDesignReset.HasValue ? FormatResetDate(_claudeDesignReset) : "";
         }
 
         ClaudeCompactFableRow.IsVisible = _claudeFableUsed.HasValue;
@@ -1717,7 +1717,7 @@ public partial class UsagePopup : Window
         {
             RenderCompactBar(ClaudeCompactFableBar, ClaudeCompactFableTick, Color.FromRgb(0xE2, 0x70, 0x3A), _claudeFableUsed.Value, _claudeFableExpected, barWidth);
             SetUsedExpectedInlines(ClaudeCompactFablePct, _claudeFableUsed, _claudeFableExpected);
-            ClaudeCompactFableReset.Text = _claudeFableReset.HasValue ? FormatResetDate(_claudeFableReset, "M/d") : "";
+            ClaudeCompactFableReset.Text = _claudeFableReset.HasValue ? FormatResetDate(_claudeFableReset) : "";
         }
 
         // Second Claude account — fields are cleared whenever the section hides,
@@ -1730,13 +1730,13 @@ public partial class UsagePopup : Window
             SetUsedExpectedInlines(Claude2Compact5hPct, _claude2FiveHourUsed, _claude2FiveHourExpected);
             SetUsedExpectedInlines(Claude2Compact7dPct, _claude2SevenDayUsed, _claude2SevenDayExpected);
             Claude2Compact5hReset.Text = _claude2FiveHourReset.HasValue ? $"in {FormatResetCountdown(_claude2FiveHourReset)}" : "";
-            Claude2Compact7dReset.Text = _claude2SevenDayReset.HasValue ? FormatResetDate(_claude2SevenDayReset, "M/d") : "";
+            Claude2Compact7dReset.Text = _claude2SevenDayReset.HasValue ? FormatResetDate(_claude2SevenDayReset) : "";
 
             if (_claude2DesignUsed.HasValue)
             {
                 RenderCompactBar(Claude2CompactDesignBar, Claude2CompactDesignTick, Color.FromRgb(0xF4, 0x8F, 0xB1), _claude2DesignUsed.Value, _claude2DesignExpected, barWidth);
                 SetUsedExpectedInlines(Claude2CompactDesignPct, _claude2DesignUsed, _claude2DesignExpected);
-                Claude2CompactDesignReset.Text = _claude2DesignReset.HasValue ? FormatResetDate(_claude2DesignReset, "M/d") : "";
+                Claude2CompactDesignReset.Text = _claude2DesignReset.HasValue ? FormatResetDate(_claude2DesignReset) : "";
             }
         }
 
@@ -1750,7 +1750,7 @@ public partial class UsagePopup : Window
         {
             RenderCompactBar(ZaiCompactMoBar, ZaiCompactMoTick, Color.FromRgb(0x7E, 0x57, 0xC2), _zaiMoPercent.Value, _zaiMoExpected, barWidth);
             SetUsedExpectedInlines(ZaiCompactMoPct, _zaiMoPercent, _zaiMoExpected);
-            ZaiCompactMoReset.Text = _zaiMoReset.HasValue ? FormatResetDate(_zaiMoReset, "M/d") : "";
+            ZaiCompactMoReset.Text = _zaiMoReset.HasValue ? FormatResetDate(_zaiMoReset) : "";
         }
 
     }
@@ -1851,18 +1851,18 @@ public partial class UsagePopup : Window
         return $"{remaining.Minutes}m";
     }
 
-    private static string FormatResetDate(DateTimeOffset? resetAt, string format = "ddd MMM d")
+    private static string FormatResetDate(DateTimeOffset? resetAt)
     {
         if (!resetAt.HasValue) return "—";
         try
         {
             var central = GetCentralTimeZone();
             var converted = TimeZoneInfo.ConvertTime(resetAt.Value, central);
-            return converted.ToString(format);
+            return $"{converted:ddd MMM d}";
         }
         catch
         {
-            return resetAt.Value.ToLocalTime().ToString(format);
+            return $"{resetAt.Value.ToLocalTime():ddd MMM d}";
         }
     }
     #endregion
