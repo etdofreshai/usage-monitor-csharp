@@ -687,6 +687,45 @@
                 </Button>
             </StackPanel>
 
+            <Border x:Name="UpdateModalOverlay"
+                    Panel.ZIndex="100"
+                    IsVisible="False"
+                    Background="#B8000000"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch">
+                <Border Width="250"
+                        Padding="16"
+                        Background="#F21E1E1E"
+                        BorderBrush="#505050"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+                    <StackPanel Spacing="10">
+                        <TextBlock x:Name="UpdateModalTitle"
+                                   Text="Updating Usage Monitor"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Foreground="#EEEEEE"
+                                   TextAlignment="Center" />
+                        <TextBlock x:Name="UpdateModalStatus"
+                                   Text="Preparing update..."
+                                   FontSize="9"
+                                   Foreground="#AAAAAA"
+                                   TextAlignment="Center"
+                                   TextWrapping="Wrap" />
+                        <ProgressBar x:Name="UpdateModalProgress"
+                                     Height="5"
+                                     IsIndeterminate="True" />
+                        <Button x:Name="UpdateModalCloseButton"
+                                Content="Close"
+                                IsVisible="False"
+                                HorizontalAlignment="Center"
+                                Padding="16,5" />
+                    </StackPanel>
+                </Border>
+            </Border>
+
         </Grid>
     </Border>
 </Window>

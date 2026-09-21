@@ -36,6 +36,7 @@ public partial class UsagePopup : Window
     private PopupViewMode _viewMode = PopupViewMode.Full;
     private bool _allowClose;
     private bool _shutdownStarted;
+    private bool _updateInProgress;
 
     // Drag state
     private bool _isDragging;
@@ -184,6 +185,7 @@ public partial class UsagePopup : Window
         RestoreFullButton.Click += (s, e) => SetViewMode(PopupViewMode.Full);
         UpdateButton.Click += async (_, _) => await ApplyUpdateAsync();
         UpdateButtonCompact.Click += async (_, _) => await ApplyUpdateAsync();
+        UpdateModalCloseButton.Click += (_, _) => CloseUpdateModal();
         MonitorTitleText.PointerPressed += (_, _) => OpenUsageDashboard();
         WireRouterPanelLinks();
         WireProviderLinks();
@@ -510,22 +512,33 @@ public partial class UsagePopup : Window
 
     private async Task ApplyUpdateAsync()
     {
-        if (_updateChecker == null || !_updateChecker.Enabled) return;
+        if (_updateChecker == null || !_updateChecker.Enabled || _updateInProgress) return;
+        _updateInProgress = true;
         UpdateButton.IsEnabled = false;
         UpdateButtonCompact.IsEnabled = false;
+        ShowUpdateModal();
         try
         {
-            var success = await _updateChecker.ApplyUpdateAsync();
-            if (success)
+            var progress = new Progress<string>(status => UpdateModalStatus.Text = status);
+            var success = await _updateChecker.ApplyUpdateAsync(progress);
+            if (!success)
             {
-                if (!_updateChecker.RestartScheduled && !UpdateChecker.RestartApp())
-                    return;
-                ForceClose();
+                ShowUpdateFailure(_updateChecker.LastApplyError ?? "Update could not be completed.");
+                return;
             }
+
+            UpdateModalStatus.Text = "Restarting...";
+            if (!_updateChecker.RestartScheduled && !UpdateChecker.RestartApp())
+            {
+                ShowUpdateFailure("Update installed, but automatic restart failed.");
+                return;
+            }
+            ForceClose();
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Update apply failed: {ex.Message}");
+            ShowUpdateFailure(ex.Message);
         }
         finally
         {
@@ -534,6 +547,29 @@ public partial class UsagePopup : Window
             UpdateButton.IsEnabled = true;
             UpdateButtonCompact.IsEnabled = true;
         }
+    }
+
+    private void ShowUpdateModal()
+    {
+        UpdateModalTitle.Text = "Updating Usage Monitor";
+        UpdateModalStatus.Text = "Preparing update...";
+        UpdateModalProgress.IsVisible = true;
+        UpdateModalCloseButton.IsVisible = false;
+        UpdateModalOverlay.IsVisible = true;
+    }
+
+    private void ShowUpdateFailure(string message)
+    {
+        UpdateModalTitle.Text = "Update failed";
+        UpdateModalStatus.Text = message;
+        UpdateModalProgress.IsVisible = false;
+        UpdateModalCloseButton.IsVisible = true;
+    }
+
+    private void CloseUpdateModal()
+    {
+        UpdateModalOverlay.IsVisible = false;
+        _updateInProgress = false;
     }
 
     // Shared by the automatic timer and the tray-menu command. The caller uses
@@ -1972,6 +2008,7 @@ public partial class UsagePopup : Window
 
     private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
     {
+        if (_updateInProgress) return;
         var point = e.GetCurrentPoint(this);
         if (point.Properties.IsLeftButtonPressed)
         {

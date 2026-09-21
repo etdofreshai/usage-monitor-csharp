@@ -28,6 +28,7 @@ public class UpdateChecker : IDisposable
     /// close the current app but must not start the old executable again.
     /// </summary>
     public bool RestartScheduled { get; private set; }
+    public string? LastApplyError { get; private set; }
     public string? RemoteSha { get; private set; }
     public DateTimeOffset? RemoteDate { get; private set; }
 
@@ -95,7 +96,7 @@ public class UpdateChecker : IDisposable
         }
     }
 
-    public async Task<bool> ApplyUpdateAsync()
+    public async Task<bool> ApplyUpdateAsync(IProgress<string>? progress = null)
     {
         if (!Enabled) return false;
 
@@ -107,6 +108,8 @@ public class UpdateChecker : IDisposable
         try
         {
             RestartScheduled = false;
+            LastApplyError = null;
+            progress?.Report("Downloading update...");
             await RunGitAsync("pull", "--ff-only", "origin", "main");
 
             if (OperatingSystem.IsMacOS() && TryGetCurrentAppBundlePath(out var installedApp))
@@ -118,21 +121,25 @@ public class UpdateChecker : IDisposable
                 if (!File.Exists(packagingScript))
                     throw new FileNotFoundException("macOS packaging script was not found", packagingScript);
 
+                progress?.Report("Building signed macOS app...");
                 await RunCommandAsync("/bin/bash", new[] { packagingScript, "--no-install" });
                 var stagedApp = Path.Combine(_repoPath!, "dist", "UsageMonitor.app");
                 if (!File.Exists(Path.Combine(stagedApp, "Contents", "MacOS", "UsageMonitor")))
                     throw new InvalidOperationException("macOS update bundle was not produced");
 
+                progress?.Report("Preparing restart...");
                 ScheduleMacBundleSwap(installedApp, stagedApp);
                 RestartScheduled = true;
                 return true;
             }
 
+            progress?.Report("Building application...");
             await RunCommandAsync(ResolveDotnetExecutable(), new[] { "build", "-c", "Debug" });
             return true;
         }
         catch (Exception ex)
         {
+            LastApplyError = ex.Message;
             AppLog.WriteLine($"UpdateChecker apply failed: {ex.Message}");
             return false;
         }
