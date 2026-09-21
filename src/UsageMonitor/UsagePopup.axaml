@@ -688,7 +688,6 @@
             </StackPanel>
 
             <Border x:Name="UpdateModalOverlay"
-                    Panel.ZIndex="100"
                     IsVisible="False"
                     Background="#B8000000"
                     HorizontalAlignment="Stretch"
