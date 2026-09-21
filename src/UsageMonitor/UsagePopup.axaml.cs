@@ -94,7 +94,7 @@ public partial class UsagePopup : Window
     private DateTimeOffset? _codex2FiveHourReset, _codex2SevenDayReset;
     private DateTimeOffset? _codex2SparkFiveHourReset, _codex2SparkSevenDayReset;
     private DateTimeOffset? _claude5hReset, _claude7dReset, _claudeDesignReset, _claudeFableReset;
-    private DateTimeOffset? _claude2FiveHourReset, _claude2SevenDayReset, _claude2DesignReset;
+    private DateTimeOffset? _claude2FiveHourReset, _claude2SevenDayReset, _claude2DesignReset, _claude2FableReset;
     private DateTimeOffset? _zai5hReset, _zaiMoReset;
     private double? _zai5hPercent, _zaiMoPercent;
 
@@ -120,6 +120,8 @@ public partial class UsagePopup : Window
     private double? _claude2FiveHourExpected, _claude2SevenDayExpected;
     private double? _claude2DesignUsed;
     private double? _claude2DesignExpected;
+    private double? _claude2FableUsed;
+    private double? _claude2FableExpected;
     private double? _zai5hExpected, _zaiMoExpected;
 
     // Per-bar state for target-aware rendering: used%, expected% (pace target), base color.
@@ -229,6 +231,7 @@ public partial class UsagePopup : Window
         RegisterTargetBar(ClaudeCode2PrimaryBar, ClaudeCode2PrimaryBarFill, ClaudeCode2PrimaryBarTick, Color.FromRgb(0xFF, 0x8A, 0x65));
         RegisterTargetBar(ClaudeCode2SecondaryBar, ClaudeCode2SecondaryBarFill, ClaudeCode2SecondaryBarTick, Color.FromRgb(0xFF, 0xB7, 0x4D));
         RegisterTargetBar(ClaudeDesign2Bar, ClaudeDesign2BarFill, ClaudeDesign2BarTick, Color.FromRgb(0xF4, 0x8F, 0xB1));
+        RegisterTargetBar(ClaudeFable2Bar, ClaudeFable2BarFill, ClaudeFable2BarTick, Color.FromRgb(0xC2, 0x41, 0x0C));
         RegisterTargetBar(ZaiTokenBar, ZaiTokenBarFill, ZaiTokenBarTick, Color.FromRgb(0xBA, 0x68, 0xC8));
         RegisterTargetBar(ZaiMonthlyBar, ZaiMonthlyBarFill, ZaiMonthlyBarTick, Color.FromRgb(0x7E, 0x57, 0xC2));
 
@@ -1452,8 +1455,13 @@ public partial class UsagePopup : Window
             _claude2DesignUsed = null;
             _claude2DesignExpected = null;
             _claude2DesignReset = null;
+            _claude2FableUsed = null;
+            _claude2FableExpected = null;
+            _claude2FableReset = null;
             ClaudeDesign2Label.IsVisible = false;
             ClaudeDesign2Bar.IsVisible = false;
+            ClaudeFable2Label.IsVisible = false;
+            ClaudeFable2Bar.IsVisible = false;
             return;
         }
         SetTwoUsedExpectedInlines(ClaudeCode2CreditsText, c!.FiveHour.UsedPercent, c.FiveHour.ExpectedPercent, c.SevenDay.UsedPercent, c.SevenDay.ExpectedPercent);
@@ -1483,9 +1491,28 @@ public partial class UsagePopup : Window
             _claude2DesignReset = null;
         }
 
+        var showFable = c.SevenDayFable != null && _config.ShowClaudeFable;
+        ClaudeFable2Label.IsVisible = showFable;
+        ClaudeFable2Bar.IsVisible = showFable;
+        if (showFable && c.SevenDayFable is { } f)
+        {
+            _claude2FableUsed = Math.Clamp(f.UsedPercent, 0, 100);
+            _claude2FableExpected = f.ExpectedPercent;
+            _claude2FableReset = f.ResetsAt;
+            SetTargetBar(ClaudeFable2Bar, _claude2FableUsed.Value, _claude2FableExpected);
+        }
+        else
+        {
+            _claude2FableUsed = null;
+            _claude2FableExpected = null;
+            _claude2FableReset = null;
+        }
+
         var range = $"5h: in {FormatResetCountdown(c.FiveHour.ResetsAt)} • 7d: {FormatResetDate(c.SevenDay.ResetsAt)}";
         if (_claude2DesignUsed.HasValue)
             range += $" • Des: {_claude2DesignUsed.Value:F0}%";
+        if (_claude2FableUsed.HasValue)
+            range += $" • Fab: {_claude2FableUsed.Value:F0}%";
         ClaudeCode2RangeText.Text = range;
     }
 
@@ -1723,6 +1750,7 @@ public partial class UsagePopup : Window
         // Second Claude account — fields are cleared whenever the section hides,
         // but keep the visibility guard for symmetry and safety.
         Claude2CompactDesignRow.IsVisible = _claude2DesignUsed.HasValue && ClaudeCode2Section.IsVisible;
+        Claude2CompactFableRow.IsVisible = _claude2FableUsed.HasValue && ClaudeCode2Section.IsVisible;
         if (ClaudeCode2Section.IsVisible)
         {
             RenderCompactBar(Claude2Compact5hBar, Claude2Compact5hTick, Color.FromRgb(0xFF, 0x8A, 0x65), _claude2FiveHourUsed, _claude2FiveHourExpected, barWidth);
@@ -1737,6 +1765,13 @@ public partial class UsagePopup : Window
                 RenderCompactBar(Claude2CompactDesignBar, Claude2CompactDesignTick, Color.FromRgb(0xF4, 0x8F, 0xB1), _claude2DesignUsed.Value, _claude2DesignExpected, barWidth);
                 SetUsedExpectedInlines(Claude2CompactDesignPct, _claude2DesignUsed, _claude2DesignExpected);
                 Claude2CompactDesignReset.Text = _claude2DesignReset.HasValue ? FormatResetDate(_claude2DesignReset) : "";
+            }
+
+            if (_claude2FableUsed.HasValue)
+            {
+                RenderCompactBar(Claude2CompactFableBar, Claude2CompactFableTick, Color.FromRgb(0xE2, 0x70, 0x3A), _claude2FableUsed.Value, _claude2FableExpected, barWidth);
+                SetUsedExpectedInlines(Claude2CompactFablePct, _claude2FableUsed, _claude2FableExpected);
+                Claude2CompactFableReset.Text = _claude2FableReset.HasValue ? FormatResetDate(_claude2FableReset) : "";
             }
         }
 
