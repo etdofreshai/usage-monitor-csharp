@@ -134,8 +134,10 @@ public partial class UsagePopup : Window
         public Color BaseColor;
         public double Used;
         public double? Expected;
+        public bool Exhausted;
     }
     private readonly List<TargetBarState> _targetBars = new();
+    private static readonly Color ExhaustedColor = Color.FromRgb(0x61, 0x61, 0x61);
 
     // Single source of truth: the usage-api aggregator.
     private UsageApiService? _usageApiService;
@@ -402,6 +404,15 @@ public partial class UsagePopup : Window
         RenderTargetBar(state);
     }
 
+    private void SetTargetBarsExhausted(bool exhausted, params Grid[] containers)
+    {
+        foreach (var s in _targetBars.Where(s => containers.Contains(s.Container)))
+        {
+            s.Exhausted = exhausted;
+            RenderTargetBar(s);
+        }
+    }
+
     private static void RenderTargetBar(TargetBarState s)
     {
         var w = s.Container.Bounds.Width;
@@ -409,7 +420,7 @@ public partial class UsagePopup : Window
 
         var used = Math.Clamp(s.Used, 0, 100);
         s.Fill.Width = used / 100.0 * w;
-        s.Fill.Background = new SolidColorBrush(BlendOverColor(s.BaseColor, s.Expected, used));
+        s.Fill.Background = new SolidColorBrush(s.Exhausted ? ExhaustedColor : BlendOverColor(s.BaseColor, s.Expected, used));
 
         if (s.Expected is double exp && exp > 0 && exp < 100)
         {
@@ -423,11 +434,11 @@ public partial class UsagePopup : Window
         }
     }
 
-    private static void RenderCompactBar(Border fill, Border tick, Color baseColor, double used, double? expected, double width)
+    private static void RenderCompactBar(Border fill, Border tick, Color baseColor, double used, double? expected, double width, bool exhausted)
     {
         var u = Math.Clamp(used, 0, 100);
         fill.Width = u / 100.0 * width;
-        fill.Background = new SolidColorBrush(BlendOverColor(baseColor, expected, u));
+        fill.Background = new SolidColorBrush(exhausted ? ExhaustedColor : BlendOverColor(baseColor, expected, u));
         if (expected is double exp && exp > 0 && exp < 100)
         {
             var x = exp / 100.0 * width;
@@ -1680,6 +1691,34 @@ public partial class UsagePopup : Window
 
     private void UpdateCompactSummary()
     {
+        // Exhausted limits grey out: an account-wide window (5h/7d) greys every bar of
+        // that account; a model-scoped window (Spark, Design, Fable) greys only its own.
+        static bool Full(double? v) => v >= 99.5;
+        var codexOut = Full(_codex5hUsed) || Full(_codex7dUsed);
+        var codexSparkOut = codexOut || Full(_codexSpark5hUsed) || Full(_codexSpark7dUsed);
+        var codex2Out = Full(_codex2FiveHourUsed) || Full(_codex2SevenDayUsed);
+        var codex2SparkOut = codex2Out || Full(_codex2SparkFiveHourUsed) || Full(_codex2SparkSevenDayUsed);
+        var claudeOut = Full(_claude5hUsed) || Full(_claude7dUsed);
+        var claudeDesignOut = claudeOut || Full(_claudeDesignUsed);
+        var claudeFableOut = claudeOut || Full(_claudeFableUsed);
+        var claude2Out = Full(_claude2FiveHourUsed) || Full(_claude2SevenDayUsed);
+        var claude2DesignOut = claude2Out || Full(_claude2DesignUsed);
+        var claude2FableOut = claude2Out || Full(_claude2FableUsed);
+        var zaiOut = Full(_zai5hPercent);
+        var zaiMoOut = zaiOut || Full(_zaiMoPercent);
+        SetTargetBarsExhausted(codexOut, CodexPrimaryBar, CodexSecondaryBar);
+        SetTargetBarsExhausted(codexSparkOut, CodexSparkPrimaryBar, CodexSparkSecondaryBar);
+        SetTargetBarsExhausted(codex2Out, Codex2PrimaryBar, Codex2SecondaryBar);
+        SetTargetBarsExhausted(codex2SparkOut, Codex2SparkPrimaryBar, Codex2SparkSecondaryBar);
+        SetTargetBarsExhausted(claudeOut, ClaudeCodePrimaryBar, ClaudeCodeSecondaryBar);
+        SetTargetBarsExhausted(claudeDesignOut, ClaudeDesignBar);
+        SetTargetBarsExhausted(claudeFableOut, ClaudeFableBar);
+        SetTargetBarsExhausted(claude2Out, ClaudeCode2PrimaryBar, ClaudeCode2SecondaryBar);
+        SetTargetBarsExhausted(claude2DesignOut, ClaudeDesign2Bar);
+        SetTargetBarsExhausted(claude2FableOut, ClaudeFable2Bar);
+        SetTargetBarsExhausted(zaiOut, ZaiTokenBar);
+        SetTargetBarsExhausted(zaiMoOut, ZaiMonthlyBar);
+
         if (OpenRouterCompactSection == null)
             return;
 
@@ -1708,8 +1747,8 @@ public partial class UsagePopup : Window
         const double barWidth = 62.0;
         CodexCompact5hRow.IsVisible = _codex5hUsed.HasValue;
         if (_codex5hUsed.HasValue)
-            RenderCompactBar(CodexCompact5hBar, CodexCompact5hTick, Color.FromRgb(0x8B, 0xC3, 0x4A), _codex5hUsed.Value, _codex5hExpected, barWidth);
-        RenderCompactBar(CodexCompact7dBar, CodexCompact7dTick, Color.FromRgb(0xB3, 0x9D, 0xDB), _codex7dUsed, _codex7dExpected, barWidth);
+            RenderCompactBar(CodexCompact5hBar, CodexCompact5hTick, Color.FromRgb(0x8B, 0xC3, 0x4A), _codex5hUsed.Value, _codex5hExpected, barWidth, codexOut);
+        RenderCompactBar(CodexCompact7dBar, CodexCompact7dTick, Color.FromRgb(0xB3, 0x9D, 0xDB), _codex7dUsed, _codex7dExpected, barWidth, codexOut);
         if (_codex5hUsed.HasValue)
             SetUsedExpectedInlines(CodexCompact5hPct, _codex5hUsed, _codex5hExpected);
         SetUsedExpectedInlines(CodexCompact7dPct, _codex7dUsed, _codex7dExpected);
@@ -1719,14 +1758,14 @@ public partial class UsagePopup : Window
         CodexCompactSpark5hRow.IsVisible = _codexSpark5hUsed.HasValue;
         if (_codexSpark5hUsed.HasValue)
         {
-            RenderCompactBar(CodexCompactSpark5hBar, CodexCompactSpark5hTick, Color.FromRgb(0x4D, 0xD0, 0xE1), _codexSpark5hUsed.Value, _codexSpark5hExpected, barWidth);
+            RenderCompactBar(CodexCompactSpark5hBar, CodexCompactSpark5hTick, Color.FromRgb(0x4D, 0xD0, 0xE1), _codexSpark5hUsed.Value, _codexSpark5hExpected, barWidth, codexSparkOut);
             SetUsedExpectedInlines(CodexCompactSpark5hPct, _codexSpark5hUsed, _codexSpark5hExpected);
             CodexCompactSpark5hReset.Text = _codexSpark5hReset.HasValue ? $"in {FormatResetCountdown(_codexSpark5hReset)}" : "";
         }
         CodexCompactSpark7dRow.IsVisible = _codexSpark7dUsed.HasValue;
         if (_codexSpark7dUsed.HasValue)
         {
-            RenderCompactBar(CodexCompactSpark7dBar, CodexCompactSpark7dTick, Color.FromRgb(0x4D, 0xB6, 0xAC), _codexSpark7dUsed.Value, _codexSpark7dExpected, barWidth);
+            RenderCompactBar(CodexCompactSpark7dBar, CodexCompactSpark7dTick, Color.FromRgb(0x4D, 0xB6, 0xAC), _codexSpark7dUsed.Value, _codexSpark7dExpected, barWidth, codexSparkOut);
             SetUsedExpectedInlines(CodexCompactSpark7dPct, _codexSpark7dUsed, _codexSpark7dExpected);
             CodexCompactSpark7dReset.Text = _codexSpark7dReset.HasValue ? FormatResetDate(_codexSpark7dReset) : "";
         }
@@ -1736,11 +1775,11 @@ public partial class UsagePopup : Window
         {
             if (_codex2FiveHourUsed.HasValue)
             {
-                RenderCompactBar(Codex2CompactFiveHourBar, Codex2CompactFiveHourTick, Color.FromRgb(0x64, 0xB5, 0xF6), _codex2FiveHourUsed.Value, _codex2FiveHourExpected, barWidth);
+                RenderCompactBar(Codex2CompactFiveHourBar, Codex2CompactFiveHourTick, Color.FromRgb(0x64, 0xB5, 0xF6), _codex2FiveHourUsed.Value, _codex2FiveHourExpected, barWidth, codex2Out);
                 SetUsedExpectedInlines(Codex2CompactFiveHourPercent, _codex2FiveHourUsed, _codex2FiveHourExpected);
                 Codex2CompactFiveHourReset.Text = _codex2FiveHourReset.HasValue ? $"in {FormatResetCountdown(_codex2FiveHourReset)}" : "";
             }
-            RenderCompactBar(Codex2CompactSevenDayBar, Codex2CompactSevenDayTick, Color.FromRgb(0x90, 0xCA, 0xF9), _codex2SevenDayUsed, _codex2SevenDayExpected, barWidth);
+            RenderCompactBar(Codex2CompactSevenDayBar, Codex2CompactSevenDayTick, Color.FromRgb(0x90, 0xCA, 0xF9), _codex2SevenDayUsed, _codex2SevenDayExpected, barWidth, codex2Out);
             SetUsedExpectedInlines(Codex2CompactSevenDayPercent, _codex2SevenDayUsed, _codex2SevenDayExpected);
             Codex2CompactSevenDayReset.Text = _codex2SevenDayReset.HasValue ? FormatResetDate(_codex2SevenDayReset) : "";
         }
@@ -1748,20 +1787,20 @@ public partial class UsagePopup : Window
         Codex2CompactSparkFiveHourRow.IsVisible = _codex2SparkFiveHourUsed.HasValue && Codex2Section.IsVisible;
         if (_codex2SparkFiveHourUsed.HasValue && Codex2Section.IsVisible)
         {
-            RenderCompactBar(Codex2CompactSparkFiveHourBar, Codex2CompactSparkFiveHourTick, Color.FromRgb(0x95, 0x75, 0xCD), _codex2SparkFiveHourUsed.Value, _codex2SparkFiveHourExpected, barWidth);
+            RenderCompactBar(Codex2CompactSparkFiveHourBar, Codex2CompactSparkFiveHourTick, Color.FromRgb(0x95, 0x75, 0xCD), _codex2SparkFiveHourUsed.Value, _codex2SparkFiveHourExpected, barWidth, codex2SparkOut);
             SetUsedExpectedInlines(Codex2CompactSparkFiveHourPercent, _codex2SparkFiveHourUsed, _codex2SparkFiveHourExpected);
             Codex2CompactSparkFiveHourReset.Text = _codex2SparkFiveHourReset.HasValue ? $"in {FormatResetCountdown(_codex2SparkFiveHourReset)}" : "";
         }
         Codex2CompactSparkSevenDayRow.IsVisible = _codex2SparkSevenDayUsed.HasValue && Codex2Section.IsVisible;
         if (_codex2SparkSevenDayUsed.HasValue && Codex2Section.IsVisible)
         {
-            RenderCompactBar(Codex2CompactSparkSevenDayBar, Codex2CompactSparkSevenDayTick, Color.FromRgb(0xB3, 0x9D, 0xDB), _codex2SparkSevenDayUsed.Value, _codex2SparkSevenDayExpected, barWidth);
+            RenderCompactBar(Codex2CompactSparkSevenDayBar, Codex2CompactSparkSevenDayTick, Color.FromRgb(0xB3, 0x9D, 0xDB), _codex2SparkSevenDayUsed.Value, _codex2SparkSevenDayExpected, barWidth, codex2SparkOut);
             SetUsedExpectedInlines(Codex2CompactSparkSevenDayPercent, _codex2SparkSevenDayUsed, _codex2SparkSevenDayExpected);
             Codex2CompactSparkSevenDayReset.Text = _codex2SparkSevenDayReset.HasValue ? FormatResetDate(_codex2SparkSevenDayReset) : "";
         }
 
-        RenderCompactBar(ClaudeCompact5hBar, ClaudeCompact5hTick, Color.FromRgb(0xFF, 0x8A, 0x65), _claude5hUsed, _claude5hExpected, barWidth);
-        RenderCompactBar(ClaudeCompact7dBar, ClaudeCompact7dTick, Color.FromRgb(0xFF, 0xB7, 0x4D), _claude7dUsed, _claude7dExpected, barWidth);
+        RenderCompactBar(ClaudeCompact5hBar, ClaudeCompact5hTick, Color.FromRgb(0xFF, 0x8A, 0x65), _claude5hUsed, _claude5hExpected, barWidth, claudeOut);
+        RenderCompactBar(ClaudeCompact7dBar, ClaudeCompact7dTick, Color.FromRgb(0xFF, 0xB7, 0x4D), _claude7dUsed, _claude7dExpected, barWidth, claudeOut);
         SetUsedExpectedInlines(ClaudeCompact5hPct, _claude5hUsed, _claude5hExpected);
         SetUsedExpectedInlines(ClaudeCompact7dPct, _claude7dUsed, _claude7dExpected);
         ClaudeCompact5hReset.Text = _claude5hReset.HasValue ? $"in {FormatResetCountdown(_claude5hReset)}" : "";
@@ -1770,7 +1809,7 @@ public partial class UsagePopup : Window
         ClaudeCompactDesignRow.IsVisible = _claudeDesignUsed.HasValue;
         if (_claudeDesignUsed.HasValue)
         {
-            RenderCompactBar(ClaudeCompactDesignBar, ClaudeCompactDesignTick, Color.FromRgb(0xF4, 0x8F, 0xB1), _claudeDesignUsed.Value, _claudeDesignExpected, barWidth);
+            RenderCompactBar(ClaudeCompactDesignBar, ClaudeCompactDesignTick, Color.FromRgb(0xF4, 0x8F, 0xB1), _claudeDesignUsed.Value, _claudeDesignExpected, barWidth, claudeDesignOut);
             SetUsedExpectedInlines(ClaudeCompactDesignPct, _claudeDesignUsed, _claudeDesignExpected);
             ClaudeCompactDesignReset.Text = _claudeDesignReset.HasValue ? FormatResetDate(_claudeDesignReset) : "";
         }
@@ -1778,7 +1817,7 @@ public partial class UsagePopup : Window
         ClaudeCompactFableRow.IsVisible = _claudeFableUsed.HasValue;
         if (_claudeFableUsed.HasValue)
         {
-            RenderCompactBar(ClaudeCompactFableBar, ClaudeCompactFableTick, Color.FromRgb(0xE2, 0x70, 0x3A), _claudeFableUsed.Value, _claudeFableExpected, barWidth);
+            RenderCompactBar(ClaudeCompactFableBar, ClaudeCompactFableTick, Color.FromRgb(0xE2, 0x70, 0x3A), _claudeFableUsed.Value, _claudeFableExpected, barWidth, claudeFableOut);
             SetUsedExpectedInlines(ClaudeCompactFablePct, _claudeFableUsed, _claudeFableExpected);
             ClaudeCompactFableReset.Text = _claudeFableReset.HasValue ? FormatResetDate(_claudeFableReset) : "";
         }
@@ -1789,8 +1828,8 @@ public partial class UsagePopup : Window
         Claude2CompactFableRow.IsVisible = _claude2FableUsed.HasValue && ClaudeCode2Section.IsVisible;
         if (ClaudeCode2Section.IsVisible)
         {
-            RenderCompactBar(Claude2Compact5hBar, Claude2Compact5hTick, Color.FromRgb(0xFF, 0x8A, 0x65), _claude2FiveHourUsed, _claude2FiveHourExpected, barWidth);
-            RenderCompactBar(Claude2Compact7dBar, Claude2Compact7dTick, Color.FromRgb(0xFF, 0xB7, 0x4D), _claude2SevenDayUsed, _claude2SevenDayExpected, barWidth);
+            RenderCompactBar(Claude2Compact5hBar, Claude2Compact5hTick, Color.FromRgb(0xFF, 0x8A, 0x65), _claude2FiveHourUsed, _claude2FiveHourExpected, barWidth, claude2Out);
+            RenderCompactBar(Claude2Compact7dBar, Claude2Compact7dTick, Color.FromRgb(0xFF, 0xB7, 0x4D), _claude2SevenDayUsed, _claude2SevenDayExpected, barWidth, claude2Out);
             SetUsedExpectedInlines(Claude2Compact5hPct, _claude2FiveHourUsed, _claude2FiveHourExpected);
             SetUsedExpectedInlines(Claude2Compact7dPct, _claude2SevenDayUsed, _claude2SevenDayExpected);
             Claude2Compact5hReset.Text = _claude2FiveHourReset.HasValue ? $"in {FormatResetCountdown(_claude2FiveHourReset)}" : "";
@@ -1798,14 +1837,14 @@ public partial class UsagePopup : Window
 
             if (_claude2DesignUsed.HasValue)
             {
-                RenderCompactBar(Claude2CompactDesignBar, Claude2CompactDesignTick, Color.FromRgb(0xF4, 0x8F, 0xB1), _claude2DesignUsed.Value, _claude2DesignExpected, barWidth);
+                RenderCompactBar(Claude2CompactDesignBar, Claude2CompactDesignTick, Color.FromRgb(0xF4, 0x8F, 0xB1), _claude2DesignUsed.Value, _claude2DesignExpected, barWidth, claude2DesignOut);
                 SetUsedExpectedInlines(Claude2CompactDesignPct, _claude2DesignUsed, _claude2DesignExpected);
                 Claude2CompactDesignReset.Text = _claude2DesignReset.HasValue ? FormatResetDate(_claude2DesignReset) : "";
             }
 
             if (_claude2FableUsed.HasValue)
             {
-                RenderCompactBar(Claude2CompactFableBar, Claude2CompactFableTick, Color.FromRgb(0xE2, 0x70, 0x3A), _claude2FableUsed.Value, _claude2FableExpected, barWidth);
+                RenderCompactBar(Claude2CompactFableBar, Claude2CompactFableTick, Color.FromRgb(0xE2, 0x70, 0x3A), _claude2FableUsed.Value, _claude2FableExpected, barWidth, claude2FableOut);
                 SetUsedExpectedInlines(Claude2CompactFablePct, _claude2FableUsed, _claude2FableExpected);
                 Claude2CompactFableReset.Text = _claude2FableReset.HasValue ? FormatResetDate(_claude2FableReset) : "";
             }
@@ -1813,13 +1852,13 @@ public partial class UsagePopup : Window
 
         if (_zai5hPercent.HasValue)
         {
-            RenderCompactBar(ZaiCompact5hBar, ZaiCompact5hTick, Color.FromRgb(0xBA, 0x68, 0xC8), _zai5hPercent.Value, _zai5hExpected, barWidth);
+            RenderCompactBar(ZaiCompact5hBar, ZaiCompact5hTick, Color.FromRgb(0xBA, 0x68, 0xC8), _zai5hPercent.Value, _zai5hExpected, barWidth, zaiOut);
             SetUsedExpectedInlines(ZaiCompact5hPct, _zai5hPercent, _zai5hExpected);
             ZaiCompact5hReset.Text = _zai5hReset.HasValue ? $"in {FormatResetCountdown(_zai5hReset)}" : "";
         }
         if (_zaiMoPercent.HasValue)
         {
-            RenderCompactBar(ZaiCompactMoBar, ZaiCompactMoTick, Color.FromRgb(0x7E, 0x57, 0xC2), _zaiMoPercent.Value, _zaiMoExpected, barWidth);
+            RenderCompactBar(ZaiCompactMoBar, ZaiCompactMoTick, Color.FromRgb(0x7E, 0x57, 0xC2), _zaiMoPercent.Value, _zaiMoExpected, barWidth, zaiMoOut);
             SetUsedExpectedInlines(ZaiCompactMoPct, _zaiMoPercent, _zaiMoExpected);
             ZaiCompactMoReset.Text = _zaiMoReset.HasValue ? FormatResetDate(_zaiMoReset) : "";
         }
