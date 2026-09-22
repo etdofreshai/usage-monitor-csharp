@@ -138,6 +138,7 @@ public partial class UsagePopup : Window
     }
     private readonly List<TargetBarState> _targetBars = new();
     private static readonly Color ExhaustedColor = Color.FromRgb(0x61, 0x61, 0x61);
+    private readonly Dictionary<TextBlock, IBrush?> _textForegrounds = new();
 
     // Single source of truth: the usage-api aggregator.
     private UsageApiService? _usageApiService;
@@ -410,7 +411,31 @@ public partial class UsagePopup : Window
         {
             s.Exhausted = exhausted;
             RenderTargetBar(s);
+            // Full view: the bar's label shares its Grid row in column 0.
+            if (s.Container.Parent is Grid g)
+                foreach (var label in g.Children.OfType<TextBlock>().Where(t =>
+                             Grid.GetRow(t) == Grid.GetRow(s.Container) && Grid.GetColumn(t) == 0 && Grid.GetColumnSpan(t) == 1))
+                    SetTextExhausted(label, exhausted);
         }
+    }
+
+    // Greys a TextBlock (and any colored runs) while exhausted; restores its XAML color after.
+    private void SetTextExhausted(TextBlock tb, bool exhausted)
+    {
+        if (!_textForegrounds.TryGetValue(tb, out var original))
+            _textForegrounds[tb] = original = tb.Foreground;
+        tb.Foreground = exhausted ? new SolidColorBrush(ExhaustedColor) : original;
+        if (exhausted && tb.Inlines != null)
+            foreach (var inline in tb.Inlines)
+                inline.ClearValue(TextElement.ForegroundProperty);
+    }
+
+    // Compact rows: bar fill sits in a bar Grid inside the row Grid holding label, %, and reset text.
+    private void SetCompactRowExhausted(Border compactBar, bool exhausted)
+    {
+        if (compactBar.Parent?.Parent is not Grid row) return;
+        foreach (var tb in row.Children.OfType<TextBlock>())
+            SetTextExhausted(tb, exhausted);
     }
 
     private static void RenderTargetBar(TargetBarState s)
@@ -1863,6 +1888,25 @@ public partial class UsagePopup : Window
             ZaiCompactMoReset.Text = _zaiMoReset.HasValue ? FormatResetDate(_zaiMoReset) : "";
         }
 
+        // Grey text last, after percentages were rebuilt above.
+        SetTextExhausted(CodexCreditsText, codexOut);
+        SetTextExhausted(Codex2CreditsText, codex2Out);
+        SetTextExhausted(ClaudeCodeCreditsText, claudeOut);
+        SetTextExhausted(ClaudeCode2CreditsText, claude2Out);
+        SetTextExhausted(ZaiCreditsText, zaiOut);
+        foreach (var (bar, flag) in new[]
+                 {
+                     (CodexCompact5hBar, codexOut), (CodexCompact7dBar, codexOut),
+                     (CodexCompactSpark5hBar, codexSparkOut), (CodexCompactSpark7dBar, codexSparkOut),
+                     (Codex2CompactFiveHourBar, codex2Out), (Codex2CompactSevenDayBar, codex2Out),
+                     (Codex2CompactSparkFiveHourBar, codex2SparkOut), (Codex2CompactSparkSevenDayBar, codex2SparkOut),
+                     (ClaudeCompact5hBar, claudeOut), (ClaudeCompact7dBar, claudeOut),
+                     (ClaudeCompactDesignBar, claudeDesignOut), (ClaudeCompactFableBar, claudeFableOut),
+                     (Claude2Compact5hBar, claude2Out), (Claude2Compact7dBar, claude2Out),
+                     (Claude2CompactDesignBar, claude2DesignOut), (Claude2CompactFableBar, claude2FableOut),
+                     (ZaiCompact5hBar, zaiOut), (ZaiCompactMoBar, zaiMoOut),
+                 })
+            SetCompactRowExhausted(bar, flag);
     }
 
     private static string FormatUsedExpected(double? used, double? expected)
