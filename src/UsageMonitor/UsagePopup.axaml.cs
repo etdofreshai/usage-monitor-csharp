@@ -109,6 +109,7 @@ public partial class UsagePopup : Window
     private double _codex2SevenDayUsed;
     private double? _codex2FiveHourExpected, _codex2SevenDayExpected;
     private string? _codexPlan;
+    private ResetCredits? _codexResets;
     private double? _codex2SparkFiveHourUsed, _codex2SparkSevenDayUsed;
     private double? _codex2SparkFiveHourExpected, _codex2SparkSevenDayExpected;
     private double _claude5hUsed, _claude7dUsed;
@@ -1261,7 +1262,8 @@ public partial class UsagePopup : Window
     {
         // Held for ApplyCodex2, which runs next and owns the title text.
         _codexPlan = c?.PlanType;
-        CodexCompactPlan.Text = FormatPlan(_codexPlan) ?? "";
+        _codexResets = c?.Resets;
+        SetCompactPlan(CodexCompactPlan, _codexPlan, _codexResets);
         var show = c != null && _config.ShowCodex;
         CodexSection.IsVisible = show;
         if (!show || c == null) return;
@@ -1345,9 +1347,9 @@ public partial class UsagePopup : Window
         // compact rows. The primary labels gain "1" only while account #2 is visible.
         var show = c != null && _config.ShowCodex2;
         Codex2Section.IsVisible = show;
-        SetTitleWithPlan(CodexTitleText, show ? "Codex #1" : "Codex", _codexPlan);
-        SetTitleWithPlan(Codex2TitleText, "Codex #2", c?.PlanType);
-        Codex2CompactPlan.Text = FormatPlan(c?.PlanType) ?? "";
+        SetTitleWithPlan(CodexTitleText, show ? "Codex #1" : "Codex", _codexPlan, _codexResets);
+        SetTitleWithPlan(Codex2TitleText, "Codex #2", c?.PlanType, c?.Resets);
+        SetCompactPlan(Codex2CompactPlan, c?.PlanType, c?.Resets);
         CodexCompactFiveHourLabelText.Text = show ? "Codex1 5h" : "Codex 5h";
         CodexCompactSevenDayLabelText.Text = show ? "Codex1 7d" : "Codex 7d";
 
@@ -1453,8 +1455,8 @@ public partial class UsagePopup : Window
         var show = c != null && _config.ShowClaude;
         ClaudeCodeSection.IsVisible = show;
         if (!show || c == null) return;
-        SetTitleWithPlan(ClaudeTitleText, "Claude", c.SubscriptionType);
-        ClaudeCompactPlan.Text = FormatPlan(c.SubscriptionType) ?? "";
+        SetTitleWithPlan(ClaudeTitleText, "Claude", c.SubscriptionType, c.Resets);
+        SetCompactPlan(ClaudeCompactPlan, c.SubscriptionType, c.Resets);
         SetTwoUsedExpectedInlines(ClaudeCodeCreditsText, c.FiveHour.UsedPercent, c.FiveHour.ExpectedPercent, c.SevenDay.UsedPercent, c.SevenDay.ExpectedPercent);
         _claude5hUsed = c.FiveHour.UsedPercent;
         _claude7dUsed = c.SevenDay.UsedPercent;
@@ -1513,8 +1515,8 @@ public partial class UsagePopup : Window
         // providers.claude2 AND the local config flag approves it.
         var show = c != null && _config.ShowClaude2;
         ClaudeCode2Section.IsVisible = show;
-        SetTitleWithPlan(ClaudeCode2TitleText, "Claude 2", c?.SubscriptionType);
-        Claude2CompactPlan.Text = FormatPlan(c?.SubscriptionType) ?? "";
+        SetTitleWithPlan(ClaudeCode2TitleText, "Claude 2", c?.SubscriptionType, c?.Resets);
+        SetCompactPlan(Claude2CompactPlan, c?.SubscriptionType, c?.Resets);
         if (!show)
         {
             // Clear all claude2 state so the compact view never renders stale data.
@@ -1943,17 +1945,52 @@ public partial class UsagePopup : Window
 
     // The plan tier is metadata, not a measurement, so it trails the provider
     // name in the sub-label gray rather than competing with the percentages.
-    private static void SetTitleWithPlan(TextBlock tb, string title, string? plan)
+    private static void SetTitleWithPlan(TextBlock tb, string title, string? plan, ResetCredits? resets = null)
     {
         tb.Inlines!.Clear();
         tb.Inlines.Add(new Run(title));
         var label = FormatPlan(plan);
-        if (label == null) return;
-        tb.Inlines.Add(new Run($"  {label}")
+        if (label != null)
+            tb.Inlines.Add(new Run($"  {label}")
+            {
+                Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
+                FontSize = Math.Max(6, tb.FontSize - 2),
+            });
+        var badge = ResetBadge(resets);
+        if (badge != null)
+            tb.Inlines.Add(new Run($"  {badge}")
+            {
+                Foreground = new SolidColorBrush(ResetBadgeColor),
+                FontSize = Math.Max(6, tb.FontSize - 2),
+            });
+        ToolTip.SetTip(tb, ResetTooltip(resets));
+    }
+
+    // Available limit resets (Claude "Reset for free", Codex reset credits); redeemed on the provider's site.
+    private static readonly Color ResetBadgeColor = Color.FromRgb(0x4D, 0xD0, 0xE1);
+
+    private static string? ResetBadge(ResetCredits? r) =>
+        r is { AvailableCount: > 0 } ? $"↻{r.AvailableCount}" : null;
+
+    private static string? ResetTooltip(ResetCredits? r)
+    {
+        if (r is not { AvailableCount: > 0 }) return null;
+        var s = $"{r.AvailableCount} limit reset{(r.AvailableCount == 1 ? "" : "s")} available";
+        return r.NextExpiresAt.HasValue ? $"{s}, expires {FormatResetDate(r.NextExpiresAt)}" : s;
+    }
+
+    // Compact plan column: plan on top, reset badge stacked below it.
+    private static void SetCompactPlan(TextBlock tb, string? plan, ResetCredits? resets)
+    {
+        tb.Inlines!.Clear();
+        tb.Inlines.Add(new Run(FormatPlan(plan) ?? ""));
+        var badge = ResetBadge(resets);
+        if (badge != null)
         {
-            Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
-            FontSize = Math.Max(6, tb.FontSize - 2),
-        });
+            tb.Inlines.Add(new LineBreak());
+            tb.Inlines.Add(new Run(badge) { Foreground = new SolidColorBrush(ResetBadgeColor) });
+        }
+        ToolTip.SetTip(tb, ResetTooltip(resets));
     }
 
     // Providers disagree on casing: usage-api sends Claude's tier already

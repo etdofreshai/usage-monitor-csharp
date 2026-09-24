@@ -10,8 +10,9 @@ public record UsageWindow(
     DateTimeOffset? ResetsAt
 );
 
-public record ClaudeBlock(UsageWindow FiveHour, UsageWindow SevenDay, UsageWindow? SevenDayDesign, UsageWindow? SevenDayFable, string? SubscriptionType);
-public record CodexBlock(UsageWindow? Primary, UsageWindow Secondary, UsageWindow? SparkPrimary, UsageWindow? SparkSecondary, string? PlanType, string? CreditsBalance);
+public record ResetCredits(int AvailableCount, DateTimeOffset? NextExpiresAt);
+public record ClaudeBlock(UsageWindow FiveHour, UsageWindow SevenDay, UsageWindow? SevenDayDesign, UsageWindow? SevenDayFable, string? SubscriptionType, ResetCredits? Resets);
+public record CodexBlock(UsageWindow? Primary, UsageWindow Secondary, UsageWindow? SparkPrimary, UsageWindow? SparkSecondary, string? PlanType, string? CreditsBalance, ResetCredits? Resets);
 public record ZaiBlock(UsageWindow? FiveHour, UsageWindow? Monthly, long? MonthlyCurrent, long? MonthlyLimit, string? Level);
 public record OpenRouterBlock(double Usage, double? Limit, double? LimitRemaining, bool? IsFreeTier);
 public record OpenAiBlock(double SpendToday, double SpendMonth, string Currency);
@@ -118,8 +119,18 @@ public class UsageApiService : IDisposable
             ParseWindow(seven, "utilization"),
             design,
             fable,
-            ReadString(data, "subscription_type")
+            ReadString(data, "subscription_type"),
+            ParseResetCredits(data)
         );
+    }
+
+    // Same "reset_credits" shape for Claude and Codex; null when the server has none.
+    private static ResetCredits? ParseResetCredits(JsonElement data)
+    {
+        if (!data.TryGetProperty("reset_credits", out var rc) || rc.ValueKind != JsonValueKind.Object)
+            return null;
+        var count = (int)(ReadInt64(rc, "available_count") ?? 0);
+        return new ResetCredits(count, ReadDateTimeOffset(rc, "next_expires_at"));
     }
 
     private static CodexBlock? ParseCodex(JsonElement data)
@@ -158,7 +169,8 @@ public class UsageApiService : IDisposable
             sparkPri,
             sparkSec,
             ReadString(data, "plan_type"),
-            ReadString(data, "credits_balance")
+            ReadString(data, "credits_balance"),
+            ParseResetCredits(data)
         );
     }
 
