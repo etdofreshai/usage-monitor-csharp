@@ -292,7 +292,7 @@
                     IsVisible="False"
                     HorizontalAlignment="Right"
                     VerticalAlignment="Bottom"
-                    Width="284"
+                    Width="300"
                     Background="#E6181818"
                     CornerRadius="18"
                     BorderBrush="#404040"
@@ -407,7 +407,8 @@
                         <TextBlock x:Name="OpenAiCompactText" Text="—" FontSize="8" Foreground="#7DD4B8" Grid.Column="1" HorizontalAlignment="Right" TextAlignment="Right" />
                     </Grid>
                     <DockPanel x:Name="CodexCompactSection" LastChildFill="True">
-                        <TextBlock x:Name="CodexCompactPlan" DockPanel.Dock="Right" Text="" Width="42" FontSize="8" Foreground="#888888" TextAlignment="Right" VerticalAlignment="Top" Margin="6,0,0,0" />
+                        <Border DockPanel.Dock="Top" Height="1" Background="#2A2A2A" Margin="0,1,0,3" />
+                        <TextBlock x:Name="CodexCompactPlan" DockPanel.Dock="Right" Text="" Width="58" FontSize="8" Foreground="#888888" TextAlignment="Right" VerticalAlignment="Top" Margin="6,0,0,0" />
                         <StackPanel Spacing="1">
                             <Grid x:Name="CodexCompact5hRow" ColumnDefinitions="58,68,42,*" ClipToBounds="True">
                                 <TextBlock x:Name="CodexCompactFiveHourLabelText" Text="Codex 5h" FontSize="9" Foreground="#8BC34A" FontWeight="SemiBold" VerticalAlignment="Center" />
@@ -453,7 +454,8 @@
                     
                     </DockPanel>
                     <DockPanel x:Name="Codex2CompactSection" LastChildFill="True" IsVisible="False">
-                        <TextBlock x:Name="Codex2CompactPlan" DockPanel.Dock="Right" Text="" Width="42" FontSize="8" Foreground="#888888" TextAlignment="Right" VerticalAlignment="Top" Margin="6,0,0,0" />
+                        <Border DockPanel.Dock="Top" Height="1" Background="#2A2A2A" Margin="0,1,0,3" />
+                        <TextBlock x:Name="Codex2CompactPlan" DockPanel.Dock="Right" Text="" Width="58" FontSize="8" Foreground="#888888" TextAlignment="Right" VerticalAlignment="Top" Margin="6,0,0,0" />
                         <StackPanel Spacing="1">
                             <Grid x:Name="Codex2CompactFiveHourRow" ColumnDefinitions="58,68,42,*" ClipToBounds="True">
                                 <TextBlock Text="Codex2 5h" FontSize="9" Foreground="#64B5F6" FontWeight="SemiBold" VerticalAlignment="Center" />
@@ -499,7 +501,8 @@
                     
                     </DockPanel>
                     <DockPanel x:Name="ClaudeCompactSection" LastChildFill="True">
-                        <TextBlock x:Name="ClaudeCompactPlan" DockPanel.Dock="Right" Text="" Width="42" FontSize="8" Foreground="#888888" TextAlignment="Right" VerticalAlignment="Top" Margin="6,0,0,0" />
+                        <Border DockPanel.Dock="Top" Height="1" Background="#2A2A2A" Margin="0,1,0,3" />
+                        <TextBlock x:Name="ClaudeCompactPlan" DockPanel.Dock="Right" Text="" Width="58" FontSize="8" Foreground="#888888" TextAlignment="Right" VerticalAlignment="Top" Margin="6,0,0,0" />
                         <StackPanel Spacing="1">
                             <Grid ColumnDefinitions="58,68,42,*" ClipToBounds="True">
                                 <TextBlock Text="Claude 5h" FontSize="9" Foreground="#FF8A65" FontWeight="SemiBold" VerticalAlignment="Center" />
@@ -545,7 +548,8 @@
                     
                     </DockPanel>
                     <DockPanel x:Name="Claude2CompactSection" LastChildFill="True" IsVisible="False">
-                        <TextBlock x:Name="Claude2CompactPlan" DockPanel.Dock="Right" Text="" Width="42" FontSize="8" Foreground="#888888" TextAlignment="Right" VerticalAlignment="Top" Margin="6,0,0,0" />
+                        <Border DockPanel.Dock="Top" Height="1" Background="#2A2A2A" Margin="0,1,0,3" />
+                        <TextBlock x:Name="Claude2CompactPlan" DockPanel.Dock="Right" Text="" Width="58" FontSize="8" Foreground="#888888" TextAlignment="Right" VerticalAlignment="Top" Margin="6,0,0,0" />
                         <StackPanel Spacing="1">
                             <Grid ColumnDefinitions="58,68,42,*" ClipToBounds="True">
                                 <TextBlock Text="Cl2 5h" FontSize="9" Foreground="#FF8A65" FontWeight="SemiBold" VerticalAlignment="Center" />
@@ -591,7 +595,8 @@
                     
                     </DockPanel>
                     <DockPanel x:Name="ZaiCompactSection" LastChildFill="True">
-                        <TextBlock x:Name="ZaiCompactPlan" DockPanel.Dock="Right" Text="" Width="42" FontSize="8" Foreground="#888888" TextAlignment="Right" VerticalAlignment="Top" Margin="6,0,0,0" />
+                        <Border DockPanel.Dock="Top" Height="1" Background="#2A2A2A" Margin="0,1,0,3" />
+                        <TextBlock x:Name="ZaiCompactPlan" DockPanel.Dock="Right" Text="" Width="58" FontSize="8" Foreground="#888888" TextAlignment="Right" VerticalAlignment="Top" Margin="6,0,0,0" />
                         <StackPanel Spacing="1">
                             <Grid x:Name="ZaiCompactTokenRow" ColumnDefinitions="58,68,42,*" ClipToBounds="True">
                                 <TextBlock Text="Z.ai 5h" FontSize="9" Foreground="#BA68C8" FontWeight="SemiBold" VerticalAlignment="Center" />

@@ -1979,17 +1979,14 @@ public partial class UsagePopup : Window
         return r.NextExpiresAt.HasValue ? $"{s}, expires {FormatResetDate(r.NextExpiresAt)}" : s;
     }
 
-    // Compact plan column: plan on top, reset badge stacked below it.
+    // Compact plan column: reset badge to the right of the plan.
     private static void SetCompactPlan(TextBlock tb, string? plan, ResetCredits? resets)
     {
         tb.Inlines!.Clear();
         tb.Inlines.Add(new Run(FormatPlan(plan) ?? ""));
         var badge = ResetBadge(resets);
         if (badge != null)
-        {
-            tb.Inlines.Add(new LineBreak());
-            tb.Inlines.Add(new Run(badge) { Foreground = new SolidColorBrush(ResetBadgeColor) });
-        }
+            tb.Inlines.Add(new Run($" {badge}") { Foreground = new SolidColorBrush(ResetBadgeColor) });
         ToolTip.SetTip(tb, ResetTooltip(resets));
     }
 
