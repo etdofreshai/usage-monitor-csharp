@@ -27,7 +27,11 @@ public record UsageApiStatus(
     ZaiBlock? Zai,
     OpenRouterBlock? OpenRouter,
     OpenAiBlock? OpenAi,
-    JevBlock? Jev
+    JevBlock? Jev,
+    // Oldest per-provider fetchedAt and worst usage-api staleness tier
+    // ("fresh" | "little_stale" | "stale"); null from older usage-api builds.
+    DateTimeOffset? OldestFetchedAt = null,
+    string? Staleness = null
 );
 
 public class UsageApiService : IDisposable
@@ -59,6 +63,19 @@ public class UsageApiService : IDisposable
             var ts = ReadDateTimeOffset(root, "timestamp") ?? DateTimeOffset.Now;
             var providers = root.TryGetProperty("providers", out var p) ? p : default;
 
+            DateTimeOffset? oldest = null;
+            string? worst = null;
+            string[] rank = ["fresh", "little_stale", "stale"];
+            if (providers.ValueKind == JsonValueKind.Object)
+                foreach (var prov in providers.EnumerateObject())
+                {
+                    if (prov.Value.ValueKind != JsonValueKind.Object) continue;
+                    var at = ReadDateTimeOffset(prov.Value, "fetchedAt");
+                    if (at is { } a && (oldest == null || a < oldest)) oldest = a;
+                    var tier = ReadString(prov.Value, "staleness");
+                    if (tier != null && Array.IndexOf(rank, tier) > Array.IndexOf(rank, worst)) worst = tier;
+                }
+
             return new UsageApiStatus(
                 ts,
                 ParseClaude(GetData(providers, "claude")),
@@ -68,7 +85,9 @@ public class UsageApiService : IDisposable
                 ParseZai(GetData(providers, "zai")),
                 ParseOpenRouter(GetData(providers, "openrouter")),
                 ParseOpenAi(GetData(providers, "openai")),
-                ParseJev(GetData(providers, "jev"))
+                ParseJev(GetData(providers, "jev")),
+                oldest,
+                worst
             );
         }
         catch (Exception ex)

@@ -1097,6 +1097,8 @@ public partial class UsagePopup : Window
 
         Dispatcher.UIThread.Post(() =>
         {
+            var tier = status.Staleness switch { "stale" => " (stale)", "little_stale" => " (a little stale)", _ => "" };
+            ConfigPathText.Text = $"Source: {_config.UsageApiUrl} · Updated {FormatFetchedAt(status.OldestFetchedAt)}{tier}";
             ApplyOpenRouter(status.OpenRouter);
             ApplyOpenAi(status.OpenAi);
             ApplyJev(status.Jev);
