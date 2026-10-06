@@ -273,6 +273,12 @@
                     </Grid>
 
                     <Border x:Name="NoKeysHint" Background="#1A1A1A" CornerRadius="8" Padding="10" IsVisible="True">
+                        <StackPanel Spacing="3">
+                            <TextBlock Text="No API keys configured" FontSize="10" Foreground="#666666" TextWrapping="Wrap" />
+                            <TextBlock x:Name="ConfigPathText" Text="" FontSize="9" Foreground="#444444" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+
                     <Border x:Name="GateSection" Background="#222222" CornerRadius="8" Padding="8" IsVisible="False">
                         <StackPanel Spacing="4">
                             <Grid ColumnDefinitions="Auto,*">
@@ -280,12 +286,6 @@
                                 <TextBlock x:Name="GateTallyText" Grid.Column="1" Text="" FontSize="9" TextAlignment="Right" HorizontalAlignment="Right" />
                             </Grid>
                             <UniformGrid x:Name="GateStrip" Rows="1" Columns="20" Height="10" />
-                        </StackPanel>
-                    </Border>
-
-                        <StackPanel Spacing="3">
-                            <TextBlock Text="No API keys configured" FontSize="10" Foreground="#666666" TextWrapping="Wrap" />
-                            <TextBlock x:Name="ConfigPathText" Text="" FontSize="9" Foreground="#444444" TextWrapping="Wrap" />
                         </StackPanel>
                     </Border>
 
