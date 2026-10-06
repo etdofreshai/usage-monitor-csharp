@@ -69,6 +69,7 @@ public class Config
     public bool ShowOpenAi { get; set; } = true;
     public bool ShowOpenRouter { get; set; } = true;
     public bool ShowJev { get; set; } = true;
+    public bool ShowGate { get; set; } = true;
     public bool ShowZai { get; set; } = true;
     public bool ShowZaiRequests { get; set; } = true;
 
@@ -146,6 +147,7 @@ public class Config
         ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_OPENAI", nameof(ShowOpenAi), v => config.ShowOpenAi = v);
         ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_OPENROUTER", nameof(ShowOpenRouter), v => config.ShowOpenRouter = v);
         ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_JEV", nameof(ShowJev), v => config.ShowJev = v);
+        ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_GATE", nameof(ShowGate), v => config.ShowGate = v);
         ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_ZAI", nameof(ShowZai), v => config.ShowZai = v);
         ApplyFlagEnv(config, "USAGE_MONITOR_SHOW_ZAI_REQUESTS", nameof(ShowZaiRequests), v => config.ShowZaiRequests = v);
     }

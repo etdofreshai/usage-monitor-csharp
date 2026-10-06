@@ -7,6 +7,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Controls.Documents;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
@@ -151,15 +152,18 @@ public partial class UsagePopup : Window
     // Last successful usage snapshot, retained so provider show/hide toggles can
     // re-render visibility immediately without waiting for the next poll.
     private UsageApiStatus? _lastStatus;
+    private GateService? _gateService;
+    private IReadOnlyList<GateRequest>? _lastGate;
 
     // Provider visibility toggles surfaced (in this order) in the tray "Providers" menu.
-    public enum ProviderToggle { OpenAi, OpenRouter, Jev, Codex, Codex2, CodexSpark, Claude, Claude2, ClaudeDesign, ClaudeFable, Claude2Design, Zai, ZaiRequests }
+    public enum ProviderToggle { OpenAi, OpenRouter, Jev, Gate, Codex, Codex2, CodexSpark, Claude, Claude2, ClaudeDesign, ClaudeFable, Claude2Design, Zai, ZaiRequests }
 
     public static readonly IReadOnlyList<(ProviderToggle Key, string Label)> ProviderToggles = new[]
     {
         (ProviderToggle.OpenAi, "OpenAI"),
         (ProviderToggle.OpenRouter, "OpenRouter"),
         (ProviderToggle.Jev, "Jev Spend"),
+        (ProviderToggle.Gate, "9gate Recent Models"),
         (ProviderToggle.Codex, "Codex #1"),
         (ProviderToggle.Codex2, "Codex #2"),
         (ProviderToggle.CodexSpark, "Codex Spark"),
@@ -303,6 +307,8 @@ public partial class UsagePopup : Window
     private void InitializeAiServices()
     {
         _usageApiService = new UsageApiService(_config.UsageApiUrl);
+        if (!string.IsNullOrWhiteSpace(_config.NineRouterUrl))
+            _gateService = new GateService(_config.NineRouterUrl);
         // Sections start hidden; the first successful refresh reveals whichever providers
         // returned data. NoKeysHint also flips off after the first successful response.
         NoKeysHint.IsVisible = false;
@@ -528,6 +534,7 @@ public partial class UsagePopup : Window
         _systemRefreshTimer.Stop();
         _aiRefreshTimer.Stop();
         _usageApiService?.Dispose();
+        _gateService?.Dispose();
         _updateChecker?.Dispose();
     }
 
@@ -1091,7 +1098,11 @@ public partial class UsagePopup : Window
     private async Task RefreshAiCreditsAsync()
     {
         if (_usageApiService == null) return;
+        var gateTask = _gateService?.GetRecentAsync() ?? Task.FromResult<IReadOnlyList<GateRequest>?>(null);
         var status = await _usageApiService.GetStatusAsync();
+        var gate = await gateTask;
+        if (gate != null)
+            Dispatcher.UIThread.Post(() => ApplyGate(gate));
         if (status == null) return;
         _lastStatus = status;
 
@@ -1133,6 +1144,7 @@ public partial class UsagePopup : Window
         ProviderToggle.OpenAi => _config.ShowOpenAi,
         ProviderToggle.OpenRouter => _config.ShowOpenRouter,
         ProviderToggle.Jev => _config.ShowJev,
+        ProviderToggle.Gate => _config.ShowGate,
         ProviderToggle.Codex => _config.ShowCodex,
         ProviderToggle.Codex2 => _config.ShowCodex2,
         ProviderToggle.CodexSpark => _config.ShowCodexSpark,
@@ -1153,6 +1165,7 @@ public partial class UsagePopup : Window
             case ProviderToggle.OpenAi: _config.ShowOpenAi = visible; break;
             case ProviderToggle.OpenRouter: _config.ShowOpenRouter = visible; break;
             case ProviderToggle.Jev: _config.ShowJev = visible; break;
+            case ProviderToggle.Gate: _config.ShowGate = visible; break;
             case ProviderToggle.Codex: _config.ShowCodex = visible; break;
             case ProviderToggle.Codex2: _config.ShowCodex2 = visible; break;
             case ProviderToggle.CodexSpark: _config.ShowCodexSpark = visible; break;
@@ -1177,6 +1190,7 @@ public partial class UsagePopup : Window
             ApplyOpenRouter(_lastStatus?.OpenRouter);
             ApplyOpenAi(_lastStatus?.OpenAi);
             ApplyJev(_lastStatus?.Jev);
+            ApplyGate(_lastGate);
             ApplyCodex(_lastStatus?.Codex);
             ApplyCodex2(_lastStatus?.Codex2);
             ApplyClaude(_lastStatus?.Claude);
@@ -1249,6 +1263,87 @@ public partial class UsagePopup : Window
 
     private static string FormatSpend(double value) =>
         $"${value.ToString(value < 0.01 ? "F4" : value < 1 ? "F3" : "F2")}";
+
+    // Colors by provider family: Anthropic oranges, OpenAI greens/blues, GLM purple.
+    private static readonly Dictionary<string, Color> GateColors = new()
+    {
+        ["fable"] = Color.FromRgb(0xC2, 0x41, 0x0C),
+        ["opus"] = Color.FromRgb(0xFF, 0x8A, 0x65),
+        ["sonnet"] = Color.FromRgb(0xFF, 0xCC, 0x80),
+        ["haiku"] = Color.FromRgb(0xFF, 0xE0, 0xB2),
+        ["astra"] = Color.FromRgb(0x2E, 0x7D, 0x32),
+        ["sol"] = Color.FromRgb(0x8B, 0xC3, 0x4A),
+        ["terra"] = Color.FromRgb(0x4D, 0xB6, 0xAC),
+        ["luna"] = Color.FromRgb(0x64, 0xB5, 0xF6),
+        ["glm"] = Color.FromRgb(0xBA, 0x68, 0xC8),
+    };
+    private static readonly Color GateOtherColor = Color.FromRgb(0x75, 0x75, 0x75);
+    private static readonly Color GateErrorColor = Color.FromRgb(0xF4, 0x43, 0x36);
+
+    private static Color GateColor(string family) => GateColors.GetValueOrDefault(family, GateOtherColor);
+
+    private static string Cap(string s) => s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s[1..];
+
+    // Last 20 9gate requests: a strip of ticks (oldest left, newest right; failures
+    // get a red underline) plus a tally of model families, most used first.
+    private void ApplyGate(IReadOnlyList<GateRequest>? reqs)
+    {
+        if (reqs != null) _lastGate = reqs;
+        reqs = _lastGate;
+        var show = reqs is { Count: > 0 } && _config.ShowGate;
+        GateSection.IsVisible = show;
+        GateCompactRow.IsVisible = show;
+        if (!show) return;
+
+        var last = reqs!.Take(20).Reverse().ToList();
+        FillGateStrip(GateStrip, last, 2);
+        FillGateStrip(GateCompactStrip, last, 1);
+
+        var tally = last.GroupBy(r => r.Family).OrderByDescending(g => g.Count()).ThenBy(g => g.Key).ToList();
+        void Tally(TextBlock tb, bool compact)
+        {
+            tb.Inlines!.Clear();
+            foreach (var g in tally.Take(compact ? 3 : 6))
+            {
+                if (tb.Inlines.Count > 0) tb.Inlines.Add(new Run("  "));
+                tb.Inlines.Add(new Run(compact ? $"{Cap(g.Key)[..Math.Min(3, g.Key.Length)]} {g.Count()}" : $"{Cap(g.Key)} {g.Count()}")
+                {
+                    Foreground = new SolidColorBrush(GateColor(g.Key)),
+                });
+            }
+            var fails = last.Count(r => r.Outcome is not null and not "ok");
+            if (fails > 0)
+                tb.Inlines.Add(new Run($"  ✕{fails}") { Foreground = new SolidColorBrush(GateErrorColor) });
+        }
+        Tally(GateTallyText, false);
+        Tally(GateCompactTally, true);
+        GateTitleText.Text = $"9gate · last {last.Count}";
+        ToolTip.SetTip(GateCompactRow, string.Join("\n", tally.Select(g => $"{Cap(g.Key)}: {g.Count()}")));
+    }
+
+    private static void FillGateStrip(UniformGrid strip, List<GateRequest> reqs, double gap)
+    {
+        strip.Children.Clear();
+        foreach (var r in reqs)
+        {
+            var failed = r.Outcome is not null and not "ok";
+            var tick = new Border
+            {
+                Background = new SolidColorBrush(GateColor(r.Family)),
+                CornerRadius = new CornerRadius(1.5),
+                Margin = new Thickness(0, 0, gap, 0),
+                BorderBrush = new SolidColorBrush(GateErrorColor),
+                BorderThickness = new Thickness(0, 0, 0, failed ? 2 : 0),
+            };
+            var when = r.StartedAt.ToLocalTime().ToString("h:mm:ss tt");
+            var model = r.Resolved ?? r.Family;
+            var effort = r.Effort != null ? $" · {r.Effort}" : "";
+            var title = string.IsNullOrWhiteSpace(r.Title) ? "" : $"\n{r.Title}";
+            var host = string.IsNullOrWhiteSpace(r.Host) ? "" : $" · {r.Host}";
+            ToolTip.SetTip(tick, $"{model}{effort} · {r.Outcome ?? "?"}\n{when}{host}{title}");
+            strip.Children.Add(tick);
+        }
+    }
 
     private void ApplyJev(JevBlock? j)
     {
