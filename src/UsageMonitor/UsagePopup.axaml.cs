@@ -1300,10 +1300,12 @@ public partial class UsagePopup : Window
         GateCompactRow.IsVisible = show;
         if (!show) return;
 
-        var last = reqs!.Take(20).Reverse().ToList();
+        var last = reqs!.Take(GateSlots).Reverse().ToList();
         FillGateStrip(GateStrip, last, 1);
         FillGateStrip(GateCompactStrip, last, 1);
 
+        var done = last.Where(r => !r.InProgress).ToList();
+        last = done;
         var cc = last.Count(r => IsAnthropic(r.Family));
         var cx = last.Count(r => IsOpenAi(r.Family));
         var other = last.Count - cc - cx;
@@ -1318,17 +1320,41 @@ public partial class UsagePopup : Window
             if (fails > 0)
                 tb.Inlines.Add(new Run($"  ✕{fails}") { Foreground = new SolidColorBrush(GateErrorColor) });
         }
-        GateTitleText.Text = $"9gate · last {last.Count}";
+        GateTitleText.Text = $"9gate · last {GateSlots}";
         var byModel = last.GroupBy(r => r.Family).OrderByDescending(g => g.Count()).ThenBy(g => g.Key);
         ToolTip.SetTip(GateCompactRow, string.Join("\n", byModel.Select(g => $"{Cap(g.Key)}: {g.Count()}")));
         ToolTip.SetTip(GateSection, ToolTip.GetTip(GateCompactRow));
     }
 
+    private const int GateSlots = 20;
+    private static readonly Color GateEmptyColor = Color.FromRgb(0x33, 0x33, 0x33);
+    private static readonly Color GatePendingColor = Color.FromRgb(0x5A, 0x5A, 0x5A);
+
+    // Always GateSlots squares: unused slots first (grey track), then oldest to newest.
     private static void FillGateStrip(UniformGrid strip, List<GateRequest> reqs, double gap)
     {
         strip.Children.Clear();
+        for (var i = reqs.Count; i < GateSlots; i++)
+            strip.Children.Add(new Border
+            {
+                Background = new SolidColorBrush(GateEmptyColor),
+                CornerRadius = new CornerRadius(1),
+                Margin = new Thickness(0, 0, gap, 0),
+            });
         foreach (var r in reqs)
         {
+            if (r.InProgress)
+            {
+                var pending = new Border
+                {
+                    Background = new SolidColorBrush(GatePendingColor),
+                    CornerRadius = new CornerRadius(1),
+                    Margin = new Thickness(0, 0, gap, 0),
+                };
+                ToolTip.SetTip(pending, "in progress" + (string.IsNullOrWhiteSpace(r.Title) ? "" : $"\n{r.Title}"));
+                strip.Children.Add(pending);
+                continue;
+            }
             var failed = r.Outcome is not null and not "ok";
             var tick = new Border
             {
@@ -1336,7 +1362,7 @@ public partial class UsagePopup : Window
                 CornerRadius = new CornerRadius(1),
                 Margin = new Thickness(0, 0, gap, 0),
             };
-            var when = r.StartedAt.ToLocalTime().ToString("h:mm:ss tt");
+            var when = r.StartedAt?.ToLocalTime().ToString("h:mm:ss tt") ?? "";
             var model = r.Resolved ?? r.Family;
             var effort = r.Effort != null ? $" · {r.Effort}" : "";
             var title = string.IsNullOrWhiteSpace(r.Title) ? "" : $"\n{r.Title}";

@@ -4,8 +4,8 @@ namespace UsageMonitor.Services;
 
 // One 9gate exchange, reduced to what the monitor shows. Family is the model
 // auto-route actually picked (opus, sol, luna...), or the requested model when
-// the client asked for a concrete one.
-public record GateRequest(DateTimeOffset StartedAt, string Family, string? Effort, string? Resolved, string? Outcome, string? Title, string? Host);
+// the client asked for a concrete one. InProgress exchanges have no meta yet.
+public record GateRequest(DateTimeOffset? StartedAt, string Family, string? Effort, string? Resolved, string? Outcome, string? Title, string? Host, bool InProgress = false);
 
 public class GateService : IDisposable
 {
@@ -14,7 +14,7 @@ public class GateService : IDisposable
 
     public GateService(string baseUrl) => _url = baseUrl.TrimEnd('/') + "/_9gate/exchanges";
 
-    // Newest first, as 9gate returns them. In-flight exchanges have no meta yet and are skipped.
+    // Newest first, as 9gate returns them.
     public async Task<IReadOnlyList<GateRequest>?> GetRecentAsync()
     {
         try
@@ -28,7 +28,11 @@ public class GateService : IDisposable
             foreach (var e in arr.EnumerateArray())
             {
                 if (e.ValueKind != JsonValueKind.Object) continue;
-                if (!DateTimeOffset.TryParse(Str(e, "startedAt"), out var at)) continue;
+                if (!DateTimeOffset.TryParse(Str(e, "startedAt"), out var at))
+                {
+                    list.Add(new GateRequest(null, "?", null, null, null, Str(e, "title"), Str(e, "host"), InProgress: true));
+                    continue;
+                }
                 e.TryGetProperty("jev", out var jev);
                 var family = Family(Str(jev, "model") ?? Str(e, "model"));
                 list.Add(new GateRequest(at, family, Str(jev, "effort"), Str(jev, "resolved"),
