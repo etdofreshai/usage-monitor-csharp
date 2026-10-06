@@ -1264,28 +1264,33 @@ public partial class UsagePopup : Window
     private static string FormatSpend(double value) =>
         $"${value.ToString(value < 0.01 ? "F4" : value < 1 ? "F3" : "F2")}";
 
-    // Colors by provider family: Anthropic oranges, OpenAI greens/blues, GLM purple.
+    // Shade ladders by tier: Anthropic oranges, OpenAI blues, brightest = strongest model.
     private static readonly Dictionary<string, Color> GateColors = new()
     {
-        ["fable"] = Color.FromRgb(0xC2, 0x41, 0x0C),
-        ["opus"] = Color.FromRgb(0xFF, 0x8A, 0x65),
-        ["sonnet"] = Color.FromRgb(0xFF, 0xCC, 0x80),
-        ["haiku"] = Color.FromRgb(0xFF, 0xE0, 0xB2),
-        ["astra"] = Color.FromRgb(0x2E, 0x7D, 0x32),
-        ["sol"] = Color.FromRgb(0x8B, 0xC3, 0x4A),
-        ["terra"] = Color.FromRgb(0x4D, 0xB6, 0xAC),
-        ["luna"] = Color.FromRgb(0x64, 0xB5, 0xF6),
+        ["fable"] = Color.FromRgb(0xFF, 0xB7, 0x4D),
+        ["opus"] = Color.FromRgb(0xFF, 0x8A, 0x3D),
+        ["sonnet"] = Color.FromRgb(0xD8, 0x5F, 0x1A),
+        ["haiku"] = Color.FromRgb(0x9A, 0x40, 0x10),
+        ["astra"] = Color.FromRgb(0x90, 0xCA, 0xF9),
+        ["sol"] = Color.FromRgb(0x42, 0x8F, 0xF0),
+        ["terra"] = Color.FromRgb(0x1E, 0x5F, 0xC0),
+        ["luna"] = Color.FromRgb(0x12, 0x3C, 0x80),
         ["glm"] = Color.FromRgb(0xBA, 0x68, 0xC8),
     };
     private static readonly Color GateOtherColor = Color.FromRgb(0x75, 0x75, 0x75);
     private static readonly Color GateErrorColor = Color.FromRgb(0xF4, 0x43, 0x36);
+    private static readonly Color GateCcColor = Color.FromRgb(0xFF, 0x8A, 0x3D);
+    private static readonly Color GateCxColor = Color.FromRgb(0x42, 0x8F, 0xF0);
 
     private static Color GateColor(string family) => GateColors.GetValueOrDefault(family, GateOtherColor);
+
+    private static bool IsAnthropic(string family) => family is "fable" or "opus" or "sonnet" or "haiku";
+    private static bool IsOpenAi(string family) => family is "astra" or "sol" or "terra" or "luna";
 
     private static string Cap(string s) => s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s[1..];
 
     // Last 20 9gate requests: a strip of ticks (oldest left, newest right; failures
-    // get a red underline) plus a tally of model families, most used first.
+    // get a red underline), then CC (Anthropic) / CX (OpenAI) counts.
     private void ApplyGate(IReadOnlyList<GateRequest>? reqs)
     {
         if (reqs != null) _lastGate = reqs;
@@ -1296,29 +1301,27 @@ public partial class UsagePopup : Window
         if (!show) return;
 
         var last = reqs!.Take(20).Reverse().ToList();
-        FillGateStrip(GateStrip, last, 2);
+        FillGateStrip(GateStrip, last, 1);
         FillGateStrip(GateCompactStrip, last, 1);
 
-        var tally = last.GroupBy(r => r.Family).OrderByDescending(g => g.Count()).ThenBy(g => g.Key).ToList();
-        void Tally(TextBlock tb, bool compact)
+        var cc = last.Count(r => IsAnthropic(r.Family));
+        var cx = last.Count(r => IsOpenAi(r.Family));
+        var other = last.Count - cc - cx;
+        var fails = last.Count(r => r.Outcome is not null and not "ok");
+        foreach (var tb in new[] { GateTallyText, GateCompactTally })
         {
             tb.Inlines!.Clear();
-            foreach (var g in tally.Take(compact ? 3 : 6))
-            {
-                if (tb.Inlines.Count > 0) tb.Inlines.Add(new Run("  "));
-                tb.Inlines.Add(new Run(compact ? $"{Cap(g.Key)[..Math.Min(3, g.Key.Length)]} {g.Count()}" : $"{Cap(g.Key)} {g.Count()}")
-                {
-                    Foreground = new SolidColorBrush(GateColor(g.Key)),
-                });
-            }
-            var fails = last.Count(r => r.Outcome is not null and not "ok");
+            tb.Inlines.Add(new Run($"CC {cc}") { Foreground = new SolidColorBrush(GateCcColor) });
+            tb.Inlines.Add(new Run($"  CX {cx}") { Foreground = new SolidColorBrush(GateCxColor) });
+            if (other > 0)
+                tb.Inlines.Add(new Run($"  +{other}") { Foreground = new SolidColorBrush(GateOtherColor) });
             if (fails > 0)
                 tb.Inlines.Add(new Run($"  ✕{fails}") { Foreground = new SolidColorBrush(GateErrorColor) });
         }
-        Tally(GateTallyText, false);
-        Tally(GateCompactTally, true);
         GateTitleText.Text = $"9gate · last {last.Count}";
-        ToolTip.SetTip(GateCompactRow, string.Join("\n", tally.Select(g => $"{Cap(g.Key)}: {g.Count()}")));
+        var byModel = last.GroupBy(r => r.Family).OrderByDescending(g => g.Count()).ThenBy(g => g.Key);
+        ToolTip.SetTip(GateCompactRow, string.Join("\n", byModel.Select(g => $"{Cap(g.Key)}: {g.Count()}")));
+        ToolTip.SetTip(GateSection, ToolTip.GetTip(GateCompactRow));
     }
 
     private static void FillGateStrip(UniformGrid strip, List<GateRequest> reqs, double gap)
@@ -1329,11 +1332,9 @@ public partial class UsagePopup : Window
             var failed = r.Outcome is not null and not "ok";
             var tick = new Border
             {
-                Background = new SolidColorBrush(GateColor(r.Family)),
-                CornerRadius = new CornerRadius(1.5),
+                Background = new SolidColorBrush(failed ? GateErrorColor : GateColor(r.Family)),
+                CornerRadius = new CornerRadius(1),
                 Margin = new Thickness(0, 0, gap, 0),
-                BorderBrush = new SolidColorBrush(GateErrorColor),
-                BorderThickness = new Thickness(0, 0, 0, failed ? 2 : 0),
             };
             var when = r.StartedAt.ToLocalTime().ToString("h:mm:ss tt");
             var model = r.Resolved ?? r.Family;
