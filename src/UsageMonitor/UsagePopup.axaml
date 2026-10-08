@@ -135,6 +135,7 @@
                                                Grid.Row="4" Grid.ColumnSpan="2"
                                                Text="" FontSize="8" Foreground="#555555" TextWrapping="Wrap" />
                                 </Grid>
+                                <TextBlock x:Name="CodexBalanceText" FontSize="9" Foreground="#D3F2A3" IsVisible="False" />
                             </StackPanel>
                         </Border>
 
@@ -171,6 +172,7 @@
                                     </Grid>
                                     <TextBlock x:Name="Codex2RangeText" Grid.Row="4" Grid.ColumnSpan="2" Text="" FontSize="8" Foreground="#555555" TextWrapping="Wrap" />
                                 </Grid>
+                                <TextBlock x:Name="Codex2BalanceText" FontSize="9" Foreground="#BBDEFB" IsVisible="False" />
                             </StackPanel>
                         </Border>
 
@@ -465,6 +467,10 @@
                                 <TextBlock x:Name="CodexCompactSpark7dPct" Grid.Column="2" Text="—" FontSize="8" Foreground="#B4ECF2" TextAlignment="Right" VerticalAlignment="Center" />
                                 <TextBlock x:Name="CodexCompactSpark7dReset" Grid.Column="3" Text="" FontSize="8" Foreground="#888888" TextAlignment="Right" VerticalAlignment="Center" />
                             </Grid>
+                            <Grid x:Name="CodexCompactBalanceRow" ColumnDefinitions="58,*" IsVisible="False">
+                                <TextBlock x:Name="CodexCompactBalanceLabel" Text="Codex CR" FontSize="9" Foreground="#8BC34A" FontWeight="SemiBold" />
+                                <TextBlock x:Name="CodexCompactBalanceText" Grid.Column="1" FontSize="8" Foreground="#D3F2A3" VerticalAlignment="Center" />
+                            </Grid>
                         </StackPanel>
                     
                     </DockPanel>
@@ -511,6 +517,10 @@
                                 </Grid>
                                 <TextBlock x:Name="Codex2CompactSparkSevenDayPercent" Grid.Column="2" Text="—" FontSize="8" Foreground="#D1C4E9" TextAlignment="Right" VerticalAlignment="Center" />
                                 <TextBlock x:Name="Codex2CompactSparkSevenDayReset" Grid.Column="3" Text="" FontSize="8" Foreground="#888888" TextAlignment="Right" VerticalAlignment="Center" />
+                            </Grid>
+                            <Grid x:Name="Codex2CompactBalanceRow" ColumnDefinitions="58,*" IsVisible="False">
+                                <TextBlock Text="Codex2 CR" FontSize="9" Foreground="#64B5F6" FontWeight="SemiBold" />
+                                <TextBlock x:Name="Codex2CompactBalanceText" Grid.Column="1" FontSize="8" Foreground="#BBDEFB" VerticalAlignment="Center" />
                             </Grid>
                         </StackPanel>
                     

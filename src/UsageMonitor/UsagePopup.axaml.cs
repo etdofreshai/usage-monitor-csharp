@@ -1390,6 +1390,7 @@ public partial class UsagePopup : Window
         SetCompactPlan(CodexCompactPlan, _codexPlan, _codexResets);
         var show = c != null && _config.ShowCodex;
         CodexSection.IsVisible = show;
+        ApplyCodexBalance(CodexBalanceText, CodexCompactBalanceRow, CodexCompactBalanceText, c?.CreditsBalance, "Codex CR");
         if (!show || c == null) return;
         var primary = c.Primary is { } primaryWindow
             ? Math.Clamp(primaryWindow.UsedPercent, 0, 100)
@@ -1476,6 +1477,8 @@ public partial class UsagePopup : Window
         SetCompactPlan(Codex2CompactPlan, c?.PlanType, c?.Resets);
         CodexCompactFiveHourLabelText.Text = show ? "Codex1 5h" : "Codex 5h";
         CodexCompactSevenDayLabelText.Text = show ? "Codex1 7d" : "Codex 7d";
+        CodexCompactBalanceLabel.Text = show ? "Codex1 CR" : "Codex CR";
+        ApplyCodexBalance(Codex2BalanceText, Codex2CompactBalanceRow, Codex2CompactBalanceText, c?.CreditsBalance, "Codex2 CR");
 
         if (!show || c == null)
         {
@@ -2014,6 +2017,30 @@ public partial class UsagePopup : Window
             ZaiCompactMoReset.Text = _zaiMoReset.HasValue ? FormatResetDate(_zaiMoReset) : "";
         }
 
+        foreach (var (text, reset) in new[]
+                 {
+                     (CodexCompact5hReset, _codex5hReset), (CodexCompact7dReset, _codex7dReset),
+                     (CodexCompactSpark5hReset, _codexSpark5hReset), (CodexCompactSpark7dReset, _codexSpark7dReset),
+                     (Codex2CompactFiveHourReset, _codex2FiveHourReset), (Codex2CompactSevenDayReset, _codex2SevenDayReset),
+                     (Codex2CompactSparkFiveHourReset, _codex2SparkFiveHourReset), (Codex2CompactSparkSevenDayReset, _codex2SparkSevenDayReset),
+                     (ClaudeCompact5hReset, _claude5hReset), (ClaudeCompact7dReset, _claude7dReset),
+                     (ClaudeCompactDesignReset, _claudeDesignReset), (ClaudeCompactFableReset, _claudeFableReset),
+                     (Claude2Compact5hReset, _claude2FiveHourReset), (Claude2Compact7dReset, _claude2SevenDayReset),
+                     (Claude2CompactDesignReset, _claude2DesignReset), (Claude2CompactFableReset, _claude2FableReset),
+                     (ZaiCompact5hReset, _zai5hReset), (ZaiCompactMoReset, _zaiMoReset),
+                 })
+            ToolTip.SetTip(text, reset.HasValue ? $"Resets {FormatCentralTime(reset)}" : null);
+
+        SetResetTimesTooltip(CodexRangeText, ("5h", _codex5hReset), ("7d", _codex7dReset),
+            ("Spark 5h", _codexSpark5hReset), ("Spark 7d", _codexSpark7dReset));
+        SetResetTimesTooltip(Codex2RangeText, ("5h", _codex2FiveHourReset), ("7d", _codex2SevenDayReset),
+            ("Spark 5h", _codex2SparkFiveHourReset), ("Spark 7d", _codex2SparkSevenDayReset));
+        SetResetTimesTooltip(ClaudeCodeRangeText, ("5h", _claude5hReset), ("7d", _claude7dReset),
+            ("Design", _claudeDesignReset), ("Fable", _claudeFableReset));
+        SetResetTimesTooltip(ClaudeCode2RangeText, ("5h", _claude2FiveHourReset), ("7d", _claude2SevenDayReset),
+            ("Design", _claude2DesignReset), ("Fable", _claude2FableReset));
+        SetResetTimesTooltip(ZaiResetText, ("5h", _zai5hReset), ("Requests", _zaiMoReset));
+
         // Grey text last, after percentages were rebuilt above.
         SetTextExhausted(CodexCreditsText, codexOut);
         SetTextExhausted(Codex2CreditsText, codex2Out);
@@ -2033,6 +2060,23 @@ public partial class UsagePopup : Window
                      (ZaiCompact5hBar, zaiOut), (ZaiCompactMoBar, zaiMoOut),
                  })
             SetCompactRowExhausted(bar, flag);
+    }
+
+    private static void ApplyCodexBalance(TextBlock full, Grid row, TextBlock compact, string? balance, string label)
+    {
+        var text = decimal.TryParse(balance, NumberStyles.Float, CultureInfo.InvariantCulture, out var number)
+            ? number.ToString("0.##", CultureInfo.InvariantCulture)
+            : balance;
+        full.IsVisible = row.IsVisible = !string.IsNullOrWhiteSpace(text);
+        full.Text = $"{label}  {text}";
+        compact.Text = text;
+    }
+
+    private static void SetResetTimesTooltip(TextBlock text, params (string Label, DateTimeOffset? At)[] resets)
+    {
+        var tip = string.Join("\n", resets.Where(r => r.At.HasValue)
+            .Select(r => $"{r.Label}: {FormatCentralTime(r.At)}"));
+        ToolTip.SetTip(text, tip.Length > 0 ? tip : null);
     }
 
     private static string FormatUsedExpected(double? used, double? expected)
@@ -2100,7 +2144,7 @@ public partial class UsagePopup : Window
     {
         if (r is not { AvailableCount: > 0 }) return null;
         var s = $"{r.AvailableCount} limit reset{(r.AvailableCount == 1 ? "" : "s")} available";
-        return r.NextExpiresAt.HasValue ? $"{s}, expires {FormatResetDate(r.NextExpiresAt)}" : s;
+        return r.NextExpiresAt.HasValue ? $"{s}, expires {FormatCentralTime(r.NextExpiresAt)}" : s;
     }
 
     // Compact plan column: reset badge to the right of the plan.
