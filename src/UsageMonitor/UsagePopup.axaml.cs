@@ -1118,6 +1118,7 @@ public partial class UsagePopup : Window
             ApplyClaude(status.Claude);
             ApplyClaude2(status.Claude2);
             ApplyZai(status.Zai);
+            ApplyAdditionalAccounts(status.AdditionalAccounts);
             ReflowAiGrid();
             UpdateCompactSummary();
         });
@@ -1196,6 +1197,7 @@ public partial class UsagePopup : Window
             ApplyClaude(_lastStatus?.Claude);
             ApplyClaude2(_lastStatus?.Claude2);
             ApplyZai(_lastStatus?.Zai);
+            ApplyAdditionalAccounts(_lastStatus?.AdditionalAccounts);
             ReflowAiGrid();
             UpdateCompactSummary();
         }

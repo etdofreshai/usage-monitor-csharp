@@ -76,6 +76,7 @@ public class Config
     // Per-drive visibility, keyed by the drive root/mount path. Missing entries
     // default to visible so newly attached fixed drives appear automatically.
     public Dictionary<string, bool> DriveVisibility { get; set; } = new();
+    public Dictionary<string, bool> AccountVisibility { get; set; } = new();
 
     // Path to the local git checkout used for auto-update. null disables update checks.
     public string? RepoPath { get; set; }

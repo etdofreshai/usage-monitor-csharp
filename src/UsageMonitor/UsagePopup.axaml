@@ -274,6 +274,9 @@
                         </Border>
                     </Grid>
 
+                    <ScrollViewer MaxHeight="260" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel x:Name="AdditionalAccountsFull" Spacing="3" />
+                    </ScrollViewer>
                     <Border x:Name="NoKeysHint" Background="#1A1A1A" CornerRadius="8" Padding="10" IsVisible="True">
                         <StackPanel Spacing="3">
                             <TextBlock Text="No API keys configured" FontSize="10" Foreground="#666666" TextWrapping="Wrap" />
@@ -647,6 +650,9 @@
                     
                     </DockPanel>
 
+                    <ScrollViewer MaxHeight="240" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel x:Name="AdditionalAccountsCompact" Spacing="3" />
+                    </ScrollViewer>
                 </StackPanel>
             </Border>
 

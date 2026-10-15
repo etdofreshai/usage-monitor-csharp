@@ -17,6 +17,7 @@ public record ZaiBlock(UsageWindow? FiveHour, UsageWindow? Monthly, long? Monthl
 public record OpenRouterBlock(double Usage, double? Limit, double? LimitRemaining, bool? IsFreeTier);
 public record OpenAiBlock(double SpendToday, double SpendMonth, string Currency);
 public record JevBlock(double Spend1Day, double Spend3Days, double Spend7Days, string Currency);
+public record UsageAccount(string Key, string Id, string Name, ClaudeBlock? Claude, CodexBlock? Codex);
 
 public record UsageApiStatus(
     DateTimeOffset Timestamp,
@@ -31,7 +32,8 @@ public record UsageApiStatus(
     // Oldest per-provider fetchedAt and worst usage-api staleness tier
     // ("fresh" | "little_stale" | "stale"); null from older usage-api builds.
     DateTimeOffset? OldestFetchedAt = null,
-    string? Staleness = null
+    string? Staleness = null,
+    IReadOnlyList<UsageAccount>? AdditionalAccounts = null
 );
 
 public class UsageApiService : IDisposable
@@ -87,7 +89,8 @@ public class UsageApiService : IDisposable
                 ParseOpenAi(GetData(providers, "openai")),
                 ParseJev(GetData(providers, "jev")),
                 oldest,
-                worst
+                worst,
+                ParseAdditionalAccounts(providers)
             );
         }
         catch (Exception ex)
@@ -98,6 +101,25 @@ public class UsageApiService : IDisposable
     }
 
     public void Dispose() => _http.Dispose();
+
+    private static IReadOnlyList<UsageAccount> ParseAdditionalAccounts(JsonElement providers)
+    {
+        var accounts = new List<UsageAccount>();
+        if (providers.ValueKind != JsonValueKind.Object) return accounts;
+        foreach (var entry in providers.EnumerateObject())
+        {
+            var family = entry.Name.StartsWith("codex", StringComparison.Ordinal) ? "codex"
+                : entry.Name.StartsWith("claude", StringComparison.Ordinal) ? "claude" : null;
+            if (family == null || !int.TryParse(entry.Name[family.Length..], out var number) || number < 3) continue;
+            var metadata = entry.Value.TryGetProperty("account", out var a) ? a : default;
+            accounts.Add(new UsageAccount(entry.Name, ReadString(metadata, "id") ?? entry.Name,
+                ReadString(metadata, "name") ?? entry.Name,
+                family == "claude" ? ParseClaude(GetData(providers, entry.Name)) : null,
+                family == "codex" ? ParseCodex(GetData(providers, entry.Name)) : null));
+        }
+        return accounts.OrderBy(a => a.Key.StartsWith("codex") ? 0 : 1)
+            .ThenBy(a => int.Parse(a.Key[(a.Key.StartsWith("codex") ? 5 : 6)..])).ToArray();
+    }
 
     private static JsonElement GetData(JsonElement providers, string key)
     {

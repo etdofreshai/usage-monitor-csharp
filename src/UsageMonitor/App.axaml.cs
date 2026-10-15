@@ -144,6 +144,31 @@ public partial class App : Application
                 trayMenu.Items.Add(providerItem);
             }
 
+            var accountsMenu = new NativeMenu();
+            var accountsItem = new NativeMenuItem("Additional Accounts") { Menu = accountsMenu, IsVisible = false };
+            trayMenu.Items.Add(accountsItem);
+            void RefreshAccountsMenu()
+            {
+                accountsMenu.Items.Clear();
+                accountsItem.IsVisible = _popup.AdditionalAccountToggles.Count > 0;
+                foreach (var account in _popup.AdditionalAccountToggles)
+                {
+                    var item = new NativeMenuItem($"{account.Key} ({account.Name})")
+                    {
+                        ToggleType = NativeMenuItemToggleType.CheckBox,
+                        IsChecked = _popup.IsAccountVisible(account.Id),
+                    };
+                    item.Click += (_, _) => Dispatcher.UIThread.Post(() =>
+                    {
+                        _popup.SetAccountVisible(account.Id, !_popup.IsAccountVisible(account.Id));
+                        item.IsChecked = _popup.IsAccountVisible(account.Id);
+                    });
+                    accountsMenu.Items.Add(item);
+                }
+            }
+            _popup.AccountsChanged += RefreshAccountsMenu;
+            RefreshAccountsMenu();
+
             if (_popup.DriveToggles.Count > 0)
             {
                 trayMenu.Items.Add(new NativeMenuItemSeparator());

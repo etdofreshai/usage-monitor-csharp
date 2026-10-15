@@ -37,3 +37,15 @@ Check((string?)ToolTip.GetTip(full) == "7d: Oct 8 8:00 PM CDT", "Reset tooltip w
 Call("SetResetTimesTooltip", full, new (string, DateTimeOffset?)[] { ("7d", null) });
 Check(ToolTip.GetTip(full) == null, "Missing reset left stale tooltip");
 Console.WriteLine("PASS: credit balances, row visibility, reset times (CDT/CST), tooltip clearing");
+
+using var accountJson = System.Text.Json.JsonDocument.Parse("""
+{"codex3":{"account":{"id":"third","name":"Third Account"},"data":{"secondary":{"used_percent":35},"credits_balance":"0"}},
+ "claude12":{"account":{"id":"twelfth","name":"Twelfth Account"},"data":{"five_hour":{"utilization":2},"seven_day":{"utilization":3}}},
+ "codex2":{"data":{"secondary":{"used_percent":1}}},"openai":{"data":{}}}
+""");
+var parsedAccounts = (IReadOnlyList<UsageMonitor.Services.UsageAccount>)typeof(UsageMonitor.Services.UsageApiService)
+    .GetMethod("ParseAdditionalAccounts", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, new object[] { accountJson.RootElement })!;
+Check(parsedAccounts.Count == 2, "Dynamic parser included legacy or unrelated providers");
+Check(parsedAccounts[0].Id == "third" && parsedAccounts[0].Codex?.CreditsBalance == "0", "Codex #3 identity or credits missing");
+Check(parsedAccounts[1].Claude?.SevenDay.UsedPercent == 3, "Claude #12 usage missing");
+Console.WriteLine("PASS: arbitrary Codex/Claude accounts, identity, credits, legacy compatibility");
