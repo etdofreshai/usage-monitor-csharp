@@ -49,3 +49,12 @@ Check(parsedAccounts.Count == 2, "Dynamic parser included legacy or unrelated pr
 Check(parsedAccounts[0].Id == "third" && parsedAccounts[0].Codex?.CreditsBalance == "0", "Codex #3 identity or credits missing");
 Check(parsedAccounts[1].Claude?.SevenDay.UsedPercent == 3, "Claude #12 usage missing");
 Console.WriteLine("PASS: arbitrary Codex/Claude accounts, identity, credits, legacy compatibility");
+
+if (Environment.GetEnvironmentVariable("USAGE_CHECK_LIVE_URL") is { Length: > 0 } liveUrl)
+{
+    using var service = new UsageMonitor.Services.UsageApiService(liveUrl);
+    var status = await service.GetStatusAsync();
+    Check(status?.Codex != null && status.Claude != null, "Live primary accounts missing");
+    Check(status!.AdditionalAccounts?.Any(a => a.Key == "codex3" && a.Codex != null) == true, "Live Codex #3 missing");
+    Console.WriteLine("PASS: live monitor API client reads primary accounts and Codex #3");
+}
