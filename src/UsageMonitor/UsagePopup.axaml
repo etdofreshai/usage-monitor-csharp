@@ -325,13 +325,13 @@
                                        Cursor="Hand"
                                        ToolTip.Tip="Open usage dashboard" />
                             <TextBlock x:Name="RouterLinkCompact"
-                                       Text="9gate"
+                                       Text="CPA"
                                        FontSize="9"
                                        Foreground="#4DB6AC"
                                        FontWeight="Bold"
                                        VerticalAlignment="Center"
                                        Cursor="Hand"
-                                       ToolTip.Tip="Open the 9gate dashboard" />
+                                       ToolTip.Tip="Open CPA Manager Plus" />
                         </StackPanel>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
                             <Button x:Name="UpdateButtonCompact"
@@ -683,8 +683,8 @@
                         BorderThickness="0"
                         CornerRadius="12"
                         Padding="0"
-                        ToolTip.Tip="Open the 9gate dashboard">
-                    <TextBlock Text="9gate"
+                        ToolTip.Tip="Open CPA Manager Plus">
+                    <TextBlock Text="CPA"
                                FontSize="10"
                                Foreground="#4DB6AC"
                                FontWeight="SemiBold"

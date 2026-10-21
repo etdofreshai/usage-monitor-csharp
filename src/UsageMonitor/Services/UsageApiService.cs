@@ -10,7 +10,7 @@ public record UsageWindow(
     DateTimeOffset? ResetsAt
 );
 
-public record ResetCredits(int AvailableCount, DateTimeOffset? NextExpiresAt);
+public record ResetCredits(int AvailableCount, DateTimeOffset? NextExpiresAt, DateTimeOffset? CheckedAt = null);
 public record ClaudeBlock(UsageWindow FiveHour, UsageWindow SevenDay, UsageWindow? SevenDayDesign, UsageWindow? SevenDayFable, string? SubscriptionType, ResetCredits? Resets);
 public record CodexBlock(UsageWindow? Primary, UsageWindow Secondary, UsageWindow? SparkPrimary, UsageWindow? SparkSecondary, string? PlanType, string? CreditsBalance, ResetCredits? Resets);
 public record ZaiBlock(UsageWindow? FiveHour, UsageWindow? Monthly, long? MonthlyCurrent, long? MonthlyLimit, string? Level);
@@ -171,7 +171,7 @@ public class UsageApiService : IDisposable
         if (!data.TryGetProperty("reset_credits", out var rc) || rc.ValueKind != JsonValueKind.Object)
             return null;
         var count = (int)(ReadInt64(rc, "available_count") ?? 0);
-        return new ResetCredits(count, ReadDateTimeOffset(rc, "next_expires_at"));
+        return new ResetCredits(count, ReadDateTimeOffset(rc, "next_expires_at"), ReadDateTimeOffset(data, "reset_credits_checked_at"));
     }
 
     private static CodexBlock? ParseCodex(JsonElement data)

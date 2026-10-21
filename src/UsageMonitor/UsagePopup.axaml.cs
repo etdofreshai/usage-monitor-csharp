@@ -1134,8 +1134,8 @@ public partial class UsagePopup : Window
         RouterLinkCompact.IsVisible = hasUrl;
         if (!hasUrl) return;
 
-        ToolTip.SetTip(RouterButton, $"Open the 9gate dashboard\n{url}");
-        ToolTip.SetTip(RouterLinkCompact, $"Open the 9gate dashboard\n{url}");
+        ToolTip.SetTip(RouterButton, $"Open CPA Manager Plus\n{url}");
+        ToolTip.SetTip(RouterLinkCompact, $"Open CPA Manager Plus\n{url}");
         RouterButton.Click += (_, _) => OpenUrl(url);
         RouterLinkCompact.PointerPressed += (_, _) => OpenUrl(url);
     }
@@ -2144,9 +2144,11 @@ public partial class UsagePopup : Window
 
     private static string? ResetTooltip(ResetCredits? r)
     {
-        if (r is not { AvailableCount: > 0 }) return null;
+        if (r == null) return null;
         var s = $"{r.AvailableCount} limit reset{(r.AvailableCount == 1 ? "" : "s")} available";
-        return r.NextExpiresAt.HasValue ? $"{s}, expires {FormatCentralTime(r.NextExpiresAt)}" : s;
+        if (r.NextExpiresAt.HasValue) s += $", expires {FormatCentralTime(r.NextExpiresAt)}";
+        if (r.CheckedAt.HasValue) s += $"\nChecked {FormatCentralTime(r.CheckedAt)}";
+        return s;
     }
 
     // Compact plan column: reset badge to the right of the plan.

@@ -39,12 +39,9 @@ public class Config
     public string JevUsageUrl { get; set; } = "https://openrouter.ai/activity";
     public string OpenAiUsageUrl { get; set; } = "https://platform.openai.com/usage";
 
-    // 9gate, the compatibility proxy that fronts 9router on the same host. Everything
-    // outside its own /_9gate/* admin surface is forwarded upstream verbatim, so the
-    // Quota Tracker resolves through it exactly as it did on 9router's own port. This
-    // is a link target only: the monitor polls nothing from it and needs no key. The
-    // quota windows shown above still come from usage-api.
+    // Legacy recent-request strip source, independent of the quota API.
     public string NineRouterUrl { get; set; } = "http://etzminisforumx1pro.lan:20129";
+    public string ProxyDashboardUrl { get; set; } = "http://etzminisforumx1pro.lan:18317/management.html#/accounts";
 
     // Refresh interval in seconds. Default 5 — usage-api caches snapshots so polling
     // fast is cheap on its end.
@@ -231,7 +228,7 @@ public class Config
     // 307s to /dashboard, which then needs another click to get here.
     [JsonIgnore]
     public string NineRouterPanelUrl =>
-        string.IsNullOrWhiteSpace(NineRouterUrl) ? "" : NineRouterUrl.TrimEnd('/') + "/dashboard/quota";
+        ProxyDashboardUrl;
 
     public static string GetConfigPath() => ConfigFilePath;
 }
