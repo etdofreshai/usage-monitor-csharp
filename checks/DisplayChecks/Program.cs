@@ -57,4 +57,8 @@ if (Environment.GetEnvironmentVariable("USAGE_CHECK_LIVE_URL") is { Length: > 0 
     Check(status?.Codex != null && status.Claude != null, "Live primary accounts missing");
     Check(status!.AdditionalAccounts?.Any(a => a.Key == "codex3" && a.Codex != null) == true, "Live Codex #3 missing");
     Console.WriteLine("PASS: live monitor API client reads primary accounts and Codex #3");
+    using var recentService = new UsageMonitor.Services.GateService(liveUrl);
+    var recent = await recentService.GetRecentAsync();
+    Check(recent is { Count: > 0 and <= 20 }, "CPA recent-model strip did not receive recorded requests");
+    Console.WriteLine("PASS: live CPA recent-model strip receives at most 20 requests");
 }
