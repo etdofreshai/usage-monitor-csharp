@@ -163,7 +163,7 @@ public partial class UsagePopup : Window
         (ProviderToggle.OpenAi, "OpenAI"),
         (ProviderToggle.OpenRouter, "OpenRouter"),
         (ProviderToggle.Jev, "Jev Spend"),
-        (ProviderToggle.Gate, "9gate Recent Models"),
+        (ProviderToggle.Gate, "CPA Recent Models"),
         (ProviderToggle.Codex, "Codex #1"),
         (ProviderToggle.Codex2, "Codex #2"),
         (ProviderToggle.CodexSpark, "Codex Spark"),
@@ -307,8 +307,8 @@ public partial class UsagePopup : Window
     private void InitializeAiServices()
     {
         _usageApiService = new UsageApiService(_config.UsageApiUrl);
-        if (!string.IsNullOrWhiteSpace(_config.NineRouterUrl))
-            _gateService = new GateService(_config.NineRouterUrl);
+        if (!string.IsNullOrWhiteSpace(_config.UsageApiUrl))
+            _gateService = new GateService(_config.UsageApiUrl);
         // Sections start hidden; the first successful refresh reveals whichever providers
         // returned data. NoKeysHint also flips off after the first successful response.
         NoKeysHint.IsVisible = false;
@@ -1322,7 +1322,7 @@ public partial class UsagePopup : Window
             if (fails > 0)
                 tb.Inlines.Add(new Run($"  ✕{fails}") { Foreground = new SolidColorBrush(GateErrorColor) });
         }
-        GateTitleText.Text = $"9gate · last {GateSlots}";
+        GateTitleText.Text = $"CPA · last {GateSlots}";
         var byModel = last.GroupBy(r => r.Family).OrderByDescending(g => g.Count()).ThenBy(g => g.Key);
         ToolTip.SetTip(GateCompactRow, string.Join("\n", byModel.Select(g => $"{Cap(g.Key)}: {g.Count()}")));
         ToolTip.SetTip(GateSection, ToolTip.GetTip(GateCompactRow));

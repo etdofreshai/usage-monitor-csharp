@@ -12,7 +12,7 @@ public class GateService : IDisposable
     private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(5) };
     private readonly string _url;
 
-    public GateService(string baseUrl) => _url = baseUrl.TrimEnd('/') + "/_9gate/exchanges";
+    public GateService(string baseUrl) => _url = baseUrl.TrimEnd('/') + "/api/recent";
 
     // Newest first, as 9gate returns them.
     public async Task<IReadOnlyList<GateRequest>?> GetRecentAsync()
@@ -20,7 +20,7 @@ public class GateService : IDisposable
         try
         {
             using var resp = await _http.GetAsync(_url);
-            if (!resp.IsSuccessStatusCode) return null;
+            if (!resp.IsSuccessStatusCode) return Array.Empty<GateRequest>();
             using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
             if (!doc.RootElement.TryGetProperty("exchanges", out var arr) || arr.ValueKind != JsonValueKind.Array)
                 return null;
@@ -42,8 +42,8 @@ public class GateService : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"9gate error: {ex.Message}");
-            return null;
+            Console.WriteLine($"Recent request history error: {ex.Message}");
+            return Array.Empty<GateRequest>();
         }
     }
 
